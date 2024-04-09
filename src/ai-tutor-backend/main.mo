@@ -67,6 +67,10 @@ actor {
     var announcements = [];
   };
 
+  public func addTeacher(newTeacher: Teacher): async () {
+    state.teachers := Array.append(state.teachers, [newTeacher]);
+  };
+
   public func addModule(teacherId: Text, newModule: Module): async () {
     // Assuming a simple access control check (to be replaced with real logic)
     if (Array.find(state.teachers, func(t: Teacher) : Bool { t.id == teacherId }) != null) {
@@ -106,7 +110,7 @@ actor {
 
 
 
-  public func setQuiz(teacherId: Text, moduleId: Nat, lessonId: Nat, newQuiz: Quiz): async () {
+  public func setQuiz(moduleId: Nat, lessonId: Nat, newQuiz: Quiz): async () {
     // Initialize a flag to indicate whether the quiz was successfully set
     var quizSet: Bool = false;
 
@@ -149,13 +153,86 @@ actor {
 
 
 
-  public func viewModule(studentId: Text, moduleId: Nat): async ?Module {
-    // Explicitly annotate the type of `m` in the lambda function for Array.find
-    let moduleOpt = Array.find(state.modules, func(m: Module) : Bool { m.id == moduleId });
-    return moduleOpt;
+  public func getModules(): async [Module] {
+    return state.modules;
   };
 
+  public func getQuizQuestions(moduleId: Nat, lessonId: Nat, quizId: Nat): async ?[Question] {
+    let moduleOpt = Array.find(state.modules, func(m: Module) : Bool { m.id == moduleId });
+    switch (moduleOpt) {
+      case (null) { return null; }; // Module not found
+      case (?foundModule) {
+        let lessonOpt = Array.find(foundModule.lessons, func(l: Lesson) : Bool { l.id == lessonId });
+        switch (lessonOpt) {
+          case (null) { return null; }; // Lesson not found
+          case (?foundLesson) {
+            switch (foundLesson.quiz) {
+              case (null) { return null; }; // Quiz not found
+              case (?foundQuiz) {
+                if (foundQuiz.id != quizId) { return null; }; // Quiz ID mismatch
+                return ?foundQuiz.questions;
+              };
+            };
+          };
+        };
+      };
+    };
+  };
 
+  public func addAnnouncement(newAnnouncement: Announcement): async () {
+    state.announcements := Array.append(state.announcements, [newAnnouncement]);
+  };
+
+  public func viewAnnouncements(): async [Announcement] {
+    return state.announcements;
+  };
+
+  public func getStudentProgress(studentId: Text): async ?[StudentProgress] {
+    let studentOpt = Array.find(state.students, func(s: Student) : Bool { s.id == studentId });
+    switch (studentOpt) {
+      case (null) { return null; }; // Student not found
+      case (?foundStudent) {
+        return ?foundStudent.progress;
+      };
+    };
+  };
+
+  public func updateStudentProgress(studentId: Text, updatedProgress: [StudentProgress]): async () {
+    let updatedStudents = Array.map(state.students, func(s: Student) : Student {
+      if (s.id == studentId) {
+        return {
+          id = s.id;
+          name = s.name;
+          progress = updatedProgress;
+        };
+      } else {
+        return s;
+      }
+    });
+    state.students := updatedStudents;
+  };
+
+  public func addStudent(newStudent: Student): async () {
+    state.students := Array.append(state.students, [newStudent]);
+  };
+
+  public func getTeachers(): async [Teacher] {
+    return state.teachers;
+  };
+
+  public func getStudents(): async [Student] {
+    return state.students;
+  };
+
+  public func getLessonsByModule(moduleId: Nat): async [Lesson] {
+    let moduleOpt = Array.find(state.modules, func(m: Module) : Bool { m.id == moduleId });
+    switch (moduleOpt) {
+      case (null) { return []; }; // Module not found
+      case (?foundModule) {
+        return foundModule.lessons;
+      };
+    };
+  };
   public func submitQuizAnswers(studentId: Text, moduleId: Nat, lessonId: Nat, quizId: Nat, answers: [Nat]): async Nat {
     let moduleOpt = Array.find(state.modules, func(m: Module) : Bool { m.id == moduleId });
     switch (moduleOpt) {
