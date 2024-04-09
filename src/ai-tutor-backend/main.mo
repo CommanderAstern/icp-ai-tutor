@@ -2,13 +2,19 @@ import Array "mo:base/Array";
 import Error "mo:base/Error";
 import Bool "mo:base/Bool";
 import Nat "mo:base/Nat";
-
+import Option "mo:base/Option";
 
 actor {
   type Question = {
     questionText: Text;
     options: [Text];
     correctAnswerIndex: Nat;
+  };
+
+  type User = {
+    id: Nat;
+    name: Text;
+    role: Text; // "student", "teacher", or "none"
   };
 
   type Quiz = {
@@ -63,6 +69,7 @@ actor {
     var teachers: [Teacher];
     var students: [Student];
     var announcements: [Announcement];
+    var users: [User];
   };
 
   private var state: State = {
@@ -70,6 +77,7 @@ actor {
     var teachers = [];
     var students = [];
     var announcements = [];
+    var users = [];
   };
 
   // Counters for generating IDs
@@ -81,12 +89,22 @@ actor {
   private var studentIdCounter: Nat = 0;
 
   public func addTeacher(name: Text): async () {
+    // Check if the name is already taken
+    if (Array.find(state.users, func(u: User) : Bool { u.name == name }) != null) {
+      throw Error.reject("Name already exists");
+    };
     let newTeacher: Teacher = {
       id = teacherIdCounter;
       name = name;
       modules = [];
     };
+    let newUser: User = {
+      id = teacherIdCounter;
+      name = name;
+      role = "teacher";
+    };
     state.teachers := Array.append(state.teachers, [newTeacher]);
+    state.users := Array.append(state.users, [newUser]); // Add user to users array
     teacherIdCounter += 1;
   };
 
@@ -277,13 +295,33 @@ actor {
   };
 
   public func addStudent(name: Text): async () {
+    // Check if the name is already taken
+    if (Array.find(state.users, func(u: User) : Bool { u.name == name }) != null) {
+      throw Error.reject("Name already exists");
+    };
     let newStudent: Student = {
       id = studentIdCounter;
       name = name;
       progress = [];
     };
+    let newUser: User = {
+      id = studentIdCounter;
+      name = name;
+      role = "student";
+    };
     state.students := Array.append(state.students, [newStudent]);
+    state.users := Array.append(state.users, [newUser]); // Add user to users array
     studentIdCounter += 1;
+  };
+
+  public func login(name: Text): async ?Text {
+    let userOpt = Array.find(state.users, func(u: User) : Bool { u.name == name });
+    switch (userOpt) {
+      case (null) { return null; }; // User not found
+      case (?user) {
+        return ?user.role; // Return the user's role
+      };
+    };
   };
 
   public func getTeachers(): async [Teacher] {
@@ -363,5 +401,4 @@ actor {
       };
     };
   };
-
 };
