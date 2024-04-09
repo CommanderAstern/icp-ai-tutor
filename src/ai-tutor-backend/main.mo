@@ -26,29 +26,31 @@ actor {
     id: Nat;
     title: Text;
     lessons: [Lesson];
+    teacherId: Nat;
   };
 
   type StudentProgress = {
-    studentId: Text;
+    studentId: Nat;
     moduleId: Nat;
     lessonId: Nat;
     completed: Bool;
-    quizScores: [(Nat, Nat)]; // (QuizID, Score)
+    quizScores: [(Nat, Nat)];
   };
 
   type Teacher = {
-    id: Text;
+    id: Nat;
     name: Text;
     modules: [Nat];
   };
 
   type Student = {
-    id: Text;
+    id: Nat;
     name: Text;
     progress: [StudentProgress];
   };
 
   type Announcement = {
+    id: Nat;
     content: Text;
     date: Text;
   };
@@ -67,48 +69,65 @@ actor {
     var announcements = [];
   };
 
-  public func addTeacher(newTeacher: Teacher): async () {
+  // Counters for generating IDs
+  private var moduleIdCounter: Nat = 0;
+  private var lessonIdCounter: Nat = 0;
+  private var quizIdCounter: Nat = 0;
+  private var announcementIdCounter: Nat = 0;
+  private var teacherIdCounter: Nat = 0;
+  private var studentIdCounter: Nat = 0;
+
+  public func addTeacher(name: Text): async () {
+    let newTeacher: Teacher = {
+      id = teacherIdCounter;
+      name = name;
+      modules = [];
+    };
     state.teachers := Array.append(state.teachers, [newTeacher]);
+    teacherIdCounter += 1;
   };
 
-  public func addModule(teacherId: Text, newModule: Module): async () {
-    // Assuming a simple access control check (to be replaced with real logic)
+  public func addModule(teacherId: Nat, title: Text, lessons: [Lesson]): async () {
     if (Array.find(state.teachers, func(t: Teacher) : Bool { t.id == teacherId }) != null) {
+      let newModule: Module = {
+        id = moduleIdCounter;
+        title = title;
+        lessons = lessons;
+        teacherId = teacherId;
+      };
       state.modules := Array.append(state.modules, [newModule]);
+      moduleIdCounter += 1;
     } else {
-      // Teacher not found, handle the error case
-      // You can choose to throw an error, log a message, or take any other appropriate action
       throw Error.reject("Teacher not found");
     }
   };
   
-  public func addLesson(teacherId: Text, moduleId: Nat, newLesson: Lesson): async () {
-    // Check teacher exists
+  public func addLesson(teacherId: Nat, moduleId: Nat, title: Text, content: Text, quiz: ?Quiz): async () {
     if (Array.find(state.teachers, func(t: Teacher) : Bool { t.id == teacherId }) != null) {
-      // Find module by ID and add the lesson, correctly using Array.map
+      let newLesson: Lesson = {
+        id = lessonIdCounter;
+        title = title;
+        content = content;
+        quiz = quiz;
+      };
       let updatedModules = Array.map(state.modules, func(m: Module) : Module {
         if (m.id == moduleId) {
-          // If the module is the one we're looking for, return a new module with the new lesson added
           return {
             id = m.id;
             title = m.title;
             lessons = Array.append(m.lessons, [newLesson]);
+            teacherId = m.teacherId;
           };
         } else {
-          // Otherwise, return the module unchanged
           return m;
         }
       });
-      // Mutate the state with the updated modules array
       state.modules := updatedModules;
+      lessonIdCounter += 1;
     } else {
-      // Teacher not found, handle the error case
       throw Error.reject("Teacher not found");
     }
   };
-
-
-
 
   public func setQuiz(moduleId: Nat, lessonId: Nat, newQuiz: Quiz): async () {
     // Initialize a flag to indicate whether the quiz was successfully set
@@ -135,6 +154,7 @@ actor {
           id = m.id;
           title = m.title;
           lessons = updatedLessons;
+          teacherId = m.teacherId;
         };
       } else {
         return m; // Return the module unchanged if not the target
@@ -157,7 +177,7 @@ actor {
     return state.modules;
   };
 
-  public func getQuizQuestions(moduleId: Nat, lessonId: Nat, quizId: Nat): async ?[Question] {
+  public func getQuizQuestionsByLesson(moduleId: Nat, lessonId: Nat, quizId: Nat): async ?([Question], [[Text]]) {
     let moduleOpt = Array.find(state.modules, func(m: Module) : Bool { m.id == moduleId });
     switch (moduleOpt) {
       case (null) { return null; }; // Module not found
@@ -170,7 +190,40 @@ actor {
               case (null) { return null; }; // Quiz not found
               case (?foundQuiz) {
                 if (foundQuiz.id != quizId) { return null; }; // Quiz ID mismatch
-                return ?foundQuiz.questions;
+                let questions = foundQuiz.questions;
+                let options = Array.map(questions, func(q: Question) : [Text] {
+                  q.options
+                });
+                return ?(questions, options);
+              };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  public func getQuizQuestionsByLessonAdmin(moduleId: Nat, lessonId: Nat, quizId: Nat): async ?([Question], [[Text]], [Nat]) {
+    let moduleOpt = Array.find(state.modules, func(m: Module) : Bool { m.id == moduleId });
+    switch (moduleOpt) {
+      case (null) { return null; }; // Module not found
+      case (?foundModule) {
+        let lessonOpt = Array.find(foundModule.lessons, func(l: Lesson) : Bool { l.id == lessonId });
+        switch (lessonOpt) {
+          case (null) { return null; }; // Lesson not found
+          case (?foundLesson) {
+            switch (foundLesson.quiz) {
+              case (null) { return null; }; // Quiz not found
+              case (?foundQuiz) {
+                if (foundQuiz.id != quizId) { return null; }; // Quiz ID mismatch
+                let questions = foundQuiz.questions;
+                let options = Array.map(questions, func(q: Question) : [Text] {
+                  q.options
+                });
+                let answers = Array.map(questions, func(q: Question) : Nat {
+                  q.correctAnswerIndex
+                });
+                return ?(questions, options, answers);
               };
             };
           };
@@ -212,8 +265,14 @@ actor {
     state.students := updatedStudents;
   };
 
-  public func addStudent(newStudent: Student): async () {
+  public func addStudent(name: Text): async () {
+    let newStudent: Student = {
+      id = studentIdCounter;
+      name = name;
+      progress = [];
+    };
     state.students := Array.append(state.students, [newStudent]);
+    studentIdCounter += 1;
   };
 
   public func getTeachers(): async [Teacher] {
@@ -233,19 +292,20 @@ actor {
       };
     };
   };
-  public func submitQuizAnswers(studentId: Text, moduleId: Nat, lessonId: Nat, quizId: Nat, answers: [Nat]): async Nat {
+
+  public func submitQuizAnswers(studentId: Text, moduleId: Nat, lessonId: Nat, quizId: Nat, answers: [Nat]): async () {
     let moduleOpt = Array.find(state.modules, func(m: Module) : Bool { m.id == moduleId });
     switch (moduleOpt) {
-      case (null) { return 0; }; // Module not found
+      case (null) { return; }; // Module not found
       case (?foundModule) {
         let lessonOpt = Array.find(foundModule.lessons, func(l: Lesson) : Bool { l.id == lessonId });
         switch (lessonOpt) {
-          case (null) { return 0; }; // Lesson not found
+          case (null) { return; }; // Lesson not found
           case (?foundLesson) {
             switch (foundLesson.quiz) {
-              case (null) { return 0; }; // Quiz not found
+              case (null) { return; }; // Quiz not found
               case (?foundQuiz) {
-                if (foundQuiz.id != quizId) { return 0; }; // Quiz ID mismatch
+                if (foundQuiz.id != quizId) { return; }; // Quiz ID mismatch
                 // Generate an array of scores (1 or 0) for each question
                 let scores = Array.tabulate(foundQuiz.questions.size(), func(i : Nat) : Nat {
                   if (i < answers.size() and answers[i] == foundQuiz.questions[i].correctAnswerIndex) {
@@ -258,7 +318,33 @@ actor {
                 let score = Array.foldLeft<Nat, Nat>(scores, 0, func (acc: Nat, val: Nat) : Nat {
                   acc + val
                 });
-                return score;
+
+                // Update student progress
+                let updatedStudents = Array.map(state.students, func(s: Student) : Student {
+                  if (s.id == studentId) {
+                    let updatedProgress = Array.map(s.progress, func(p: StudentProgress) : StudentProgress {
+                      if (p.moduleId == moduleId and p.lessonId == lessonId) {
+                        return {
+                          studentId = p.studentId;
+                          moduleId = p.moduleId;
+                          lessonId = p.lessonId;
+                          completed = true;
+                          quizScores = Array.append(p.quizScores, [(quizId, score)]);
+                        };
+                      } else {
+                        return p;
+                      }
+                    });
+                    return {
+                      id = s.id;
+                      name = s.name;
+                      progress = updatedProgress;
+                    };
+                  } else {
+                    return s;
+                  }
+                });
+                state.students := updatedStudents;
               };
             };
           };
