@@ -2,70 +2,71 @@ import Array "mo:base/Array";
 import Error "mo:base/Error";
 import Bool "mo:base/Bool";
 
-type Question = {
-  questionText: Text;
-  options: [Text];
-  correctAnswerIndex: Nat;
-};
-
-type Quiz = {
-  questions: [Question];
-  id: Nat;
-};
-
-type Lesson = {
-  id: Nat;
-  title: Text;
-  content: Text;
-  quiz: ?Quiz;
-};
-
-type Module = {
-  id: Nat;
-  title: Text;
-  lessons: [Lesson];
-};
-
-type StudentProgress = {
-  studentId: Text;
-  moduleId: Nat;
-  lessonId: Nat;
-  completed: Bool;
-  quizScores: [(Nat, Nat)]; // (QuizID, Score)
-};
-
-type Teacher = {
-  id: Text;
-  name: Text;
-  modules: [Nat];
-};
-
-type Student = {
-  id: Text;
-  name: Text;
-  progress: [StudentProgress];
-};
-
-type Announcement = {
-  content: Text;
-  date: Text;
-};
-
-type State = {
-  var modules: [Module];
-  var teachers: [Teacher];
-  var students: [Student];
-  var announcements: [Announcement];
-};
-
 
 actor {
+  type Question = {
+    questionText: Text;
+    options: [Text];
+    correctAnswerIndex: Nat;
+  };
+
+  type Quiz = {
+    questions: [Question];
+    id: Nat;
+  };
+
+  type Lesson = {
+    id: Nat;
+    title: Text;
+    content: Text;
+    quiz: ?Quiz;
+  };
+
+  type Module = {
+    id: Nat;
+    title: Text;
+    lessons: [Lesson];
+  };
+
+  type StudentProgress = {
+    studentId: Text;
+    moduleId: Nat;
+    lessonId: Nat;
+    completed: Bool;
+    quizScores: [(Nat, Nat)]; // (QuizID, Score)
+  };
+
+  type Teacher = {
+    id: Text;
+    name: Text;
+    modules: [Nat];
+  };
+
+  type Student = {
+    id: Text;
+    name: Text;
+    progress: [StudentProgress];
+  };
+
+  type Announcement = {
+    content: Text;
+    date: Text;
+  };
+
+  type State = {
+    var modules: [Module];
+    var teachers: [Teacher];
+    var students: [Student];
+    var announcements: [Announcement];
+  };
+
   private var state: State = {
     var modules = [];
     var teachers = [];
     var students = [];
     var announcements = [];
   };
+
   public func addModule(teacherId: Text, newModule: Module): async () {
     // Assuming a simple access control check (to be replaced with real logic)
     if (Array.find(state.teachers, func(t: Teacher) : Bool { t.id == teacherId }) != null) {
@@ -105,34 +106,46 @@ actor {
 
 
 
-  public func setQuiz(teacherId: Text, lessonId: Nat, newQuiz: Quiz): async () {
+  public func setQuiz(teacherId: Text, moduleId: Nat, lessonId: Nat, newQuiz: Quiz): async () {
     // Initialize a flag to indicate whether the quiz was successfully set
-    var quizSet : Bool = false;
+    var quizSet: Bool = false;
 
-    // Correctly use Array.map to update modules
-    let updatedModules = Array.map(state.modules, func(m: Module) : Module {
+    // Use Array.map to update modules
+    let updatedModules: [Module] = Array.map(state.modules, func (m: Module) : Module {
       if (m.id == moduleId) {
+        // Found the target module, now update its lessons to include the newQuiz where lessonId matches
+        let updatedLessons: [Lesson] = Array.map(m.lessons, func (l: Lesson) : Lesson {
+          if (l.id == lessonId) {
+            quizSet := true; // Mark that we have set the quiz
+            return {
+              id = l.id;
+              title = l.title;
+              content = l.content;
+              quiz = ?newQuiz; // Set the newQuiz here, assuming quiz is an optional field in Lesson
+            };
+          } else {
+            return l; // Return the lesson unchanged if not the target
+          }
+        });
         return {
           id = m.id;
           title = m.title;
-          lessons = Array.tabulate(m.lessons.size() + 1, func(i) { if (i < m.lessons.size()) m.lessons[i] else newLesson });
+          lessons = updatedLessons;
         };
       } else {
-        return m;
+        return m; // Return the module unchanged if not the target
       }
     });
 
     // Update the state with the modified list of modules
     state.modules := updatedModules;
 
-    if (quizSet) {
-      // Quiz successfully set
-      return;
-    } else {
-      // Quiz not set, handle the error case
+    if (not quizSet) {
+      // Quiz not successfully set, handle the error case
       throw Error.reject("Quiz not set");
     }
   };
+
 
 
 
@@ -176,7 +189,5 @@ actor {
       };
     };
   };
-
-
 
 };
