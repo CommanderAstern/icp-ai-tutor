@@ -1,6 +1,7 @@
 import Array "mo:base/Array";
 import Error "mo:base/Error";
 import Bool "mo:base/Bool";
+import Nat "mo:base/Nat";
 
 
 actor {
@@ -131,25 +132,25 @@ actor {
     }
   };
 
-  public func setQuiz(moduleId: Nat, lessonId: Nat, newQuiz: Quiz): async () {
-    // Initialize a flag to indicate whether the quiz was successfully set
+  public func setQuiz(moduleId: Nat, lessonId: Nat, questions: [Question]): async () {
     var quizSet: Bool = false;
-
-    // Use Array.map to update modules
+    let newQuiz: Quiz = {
+      questions = questions;
+      id = quizIdCounter;
+    };
     let updatedModules: [Module] = Array.map(state.modules, func (m: Module) : Module {
       if (m.id == moduleId) {
-        // Found the target module, now update its lessons to include the newQuiz where lessonId matches
         let updatedLessons: [Lesson] = Array.map(m.lessons, func (l: Lesson) : Lesson {
           if (l.id == lessonId) {
-            quizSet := true; // Mark that we have set the quiz
+            quizSet := true;
             return {
               id = l.id;
               title = l.title;
               content = l.content;
-              quiz = ?newQuiz; // Set the newQuiz here, assuming quiz is an optional field in Lesson
+              quiz = ?newQuiz;
             };
           } else {
-            return l; // Return the lesson unchanged if not the target
+            return l;
           }
         });
         return {
@@ -159,20 +160,15 @@ actor {
           teacherId = m.teacherId;
         };
       } else {
-        return m; // Return the module unchanged if not the target
+        return m;
       }
     });
-
-    // Update the state with the modified list of modules
     state.modules := updatedModules;
-
+    quizIdCounter += 1;
     if (not quizSet) {
-      // Quiz not successfully set, handle the error case
       throw Error.reject("Quiz not set");
     }
   };
-
-
 
 
   public func getModules(): async [Module] {
@@ -255,7 +251,7 @@ actor {
     return state.announcements;
   };
 
-  public func getStudentProgress(studentId: Text): async ?[StudentProgress] {
+  public func getStudentProgress(studentId: Nat): async ?[StudentProgress] {
     let studentOpt = Array.find(state.students, func(s: Student) : Bool { s.id == studentId });
     switch (studentOpt) {
       case (null) { return null; }; // Student not found
@@ -265,7 +261,7 @@ actor {
     };
   };
 
-  public func updateStudentProgress(studentId: Text, updatedProgress: [StudentProgress]): async () {
+  public func updateStudentProgress(studentId: Nat, updatedProgress: [StudentProgress]): async () {
     let updatedStudents = Array.map(state.students, func(s: Student) : Student {
       if (s.id == studentId) {
         return {
@@ -308,7 +304,7 @@ actor {
     };
   };
 
-  public func submitQuizAnswers(studentId: Text, moduleId: Nat, lessonId: Nat, quizId: Nat, answers: [Nat]): async () {
+  public func submitQuizAnswers(studentId: Nat, moduleId: Nat, lessonId: Nat, quizId: Nat, answers: [Nat]): async () {
     let moduleOpt = Array.find(state.modules, func(m: Module) : Bool { m.id == moduleId });
     switch (moduleOpt) {
       case (null) { return; }; // Module not found
