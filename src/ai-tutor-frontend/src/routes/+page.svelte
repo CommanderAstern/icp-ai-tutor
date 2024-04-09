@@ -9,8 +9,8 @@
   async function onSubmit(event) {
     const enteredName = event.target.name.value;
     const response = await backend.login(enteredName);
-    if (response && response != []) {
-      console.log(response);
+    console.log("Test",response.length);
+    if (response && response.length > 0) {
       name = enteredName;
       role = response;
       message = `Welcome, ${name}! You are logged in as a ${role}.`;
