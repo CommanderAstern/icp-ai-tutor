@@ -2,13 +2,23 @@
   import "../index.scss";
   import { backend } from "$lib/canisters";
 
-  let greeting = "";
+  let name = "";
+  let role = "";
+  let message = "";
 
-  function onSubmit(event) {
-    const name = event.target.name.value;
-    backend.greet(name).then((response) => {
-      greeting = response;
-    });
+  async function onSubmit(event) {
+    const enteredName = event.target.name.value;
+    const response = await backend.login(enteredName);
+    if (response && response != []) {
+      console.log(response);
+      name = enteredName;
+      role = response;
+      message = `Welcome, ${name}! You are logged in as a ${role}.`;
+    } else {
+      name = "";
+      role = "";
+      message = "Error: User not found.";
+    }
     return false;
   }
 </script>
@@ -17,10 +27,24 @@
   <img src="/logo2.svg" alt="DFINITY logo" />
   <br />
   <br />
-  <form action="#" on:submit|preventDefault={onSubmit}>
-    <label for="name">Enter your name: &nbsp;</label>
-    <input id="name" alt="Name" type="text" />
-    <button type="submit">Click Me!</button>
-  </form>
-  <section id="greeting">{greeting}</section>
+
+  {#if role === ""}
+    <form action="#" on:submit|preventDefault={onSubmit}>
+      <label for="name">Enter your name: &nbsp;</label>
+      <input id="name" alt="Name" type="text" />
+      <button type="submit">Login</button>
+    </form>
+  {:else}
+    <section id="greeting">
+      <h2>{message}</h2>
+      {#if role === "teacher"}
+        <!-- Teacher-specific content goes here -->
+        <p>You have access to teacher features.</p>
+      {:else if role === "student"}
+        <!-- Student-specific content goes here -->
+        <p>You have access to student features.</p>
+      {/if}
+      <button on:click={() => { name = ""; role = ""; message = ""; }}>Logout</button>
+    </section>
+  {/if}
 </main>

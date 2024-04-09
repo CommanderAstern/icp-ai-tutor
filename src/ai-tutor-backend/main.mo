@@ -2,7 +2,6 @@ import Array "mo:base/Array";
 import Error "mo:base/Error";
 import Bool "mo:base/Bool";
 import Nat "mo:base/Nat";
-import Option "mo:base/Option";
 
 actor {
   type Question = {
