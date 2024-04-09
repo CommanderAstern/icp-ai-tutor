@@ -53,7 +53,9 @@ actor {
     id: Nat;
     content: Text;
     date: Text;
+    moduleId: Nat;
   };
+
 
   type State = {
     var modules: [Module];
@@ -232,8 +234,21 @@ actor {
     };
   };
 
-  public func addAnnouncement(newAnnouncement: Announcement): async () {
+  public func addAnnouncement(content: Text, date: Text, moduleId: Nat): async () {
+    let newAnnouncement: Announcement = {
+      id = announcementIdCounter;
+      content = content;
+      date = date;
+      moduleId = moduleId; // Set the moduleId field
+    };
     state.announcements := Array.append(state.announcements, [newAnnouncement]);
+    announcementIdCounter += 1;
+  };
+
+  public func getAnnouncementsByModule(moduleId: Nat): async [Announcement] {
+    Array.filter(state.announcements, func(a: Announcement) : Bool {
+      a.moduleId == moduleId
+    })
   };
 
   public func viewAnnouncements(): async [Announcement] {
