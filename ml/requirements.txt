@@ -1,0 +1,5 @@
+chromadb 
+langchain 
+pypdf2 
+tiktoken 
+python-dotenv

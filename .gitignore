@@ -23,3 +23,6 @@ dist/
 
 # environment variables
 .env
+
+# anything in ml/pdfs
+**/ml/pdfs/*
