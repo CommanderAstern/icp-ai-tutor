@@ -1,6 +1,5 @@
 import os
 import requests
-import shutil
 import zipfile
 from flask import Flask, request, jsonify
 from langchain_community.vectorstores import Chroma
@@ -8,8 +7,10 @@ from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.chains.question_answering import load_qa_chain
 from langchain.chat_models import ChatOpenAI
 from dotenv import load_dotenv
-import pickle
 import random 
+import re
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
 
 load_dotenv()
 app = Flask(__name__)
@@ -78,38 +79,75 @@ def generate_question_endpoint():
     if not db:
         return jsonify({'error': 'Chroma store not initialized'}), 500
 
-    matching_docs = db.similarity_search(query)
-    context = " ".join([doc['text'] for doc in matching_docs[:5]])  # Combine texts of top 5 matching documents
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo")
 
-    if not context.strip():  # Check if the context is empty or not meaningful
-        return jsonify({
-            'question': 'Question Not Proper',
-            'options': ['Correct Answer', 'Option 1', 'Option 2', 'Option 3'],
-            'correct_answer_index': 0
+    # Assuming `load_qa_chain()` is a defined function that loads the QA chain
+    chain = load_qa_chain(llm, chain_type="stuff")
+    
+    content_query = (f"Give content from the documents provided for the following query. If the query doesn't make sense "
+                     f"or doesn't relate to the document provided give a general overview of the pdf. Make sure the content "
+                     f"is of at least 300 words: {query}")
+    
+    matching_docs = db.similarity_search(content_query)
+    answer = chain.run(input_documents=matching_docs, question=content_query)
+    
+    question_prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are a world-class quiz writer who creates questions and answers from content."),
+        ("user", "{input}")
+    ])
+    question_chain = question_prompt | llm | StrOutputParser()
+    question_res = question_chain.invoke({
+        "input": f"From the given context: {answer}. Make 3 Questions."+ "The question should be in this format #questionstart#{question-content}#questionend# for each question. For a total of 3 times."
+    })
+    
+    question_pattern = r"#questionstart#(.*?)#questionend#"
+    questions = re.findall(question_pattern, question_res)
+
+    
+    answer_prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are a world-class quiz writer who creates one correct and three incorrect answers for quiz questions."),
+        ("user", "{input}")
+    ])
+    answer_chain = answer_prompt | llm | StrOutputParser()
+    
+    placeholder = "Placeholder"
+    quiz_results = []
+    
+    for question in questions:
+        res = answer_chain.invoke({
+            "input": f"Based on the question: {question}. Generate one correct answer and three incorrect answers for a quiz. "
+                     "Format the answers as follows: #correctanswer#Correct Answer#end# "
+                     "and #wronganswer#Wrong Answer 1#end# #wronganswer#Wrong Answer 2#end# #wronganswer#Wrong Answer 3#end#."
+        })
+        
+        correct_pattern = r"#correctanswer#(.*?)#end#"
+        wrong_pattern = r"#wronganswer#(.*?)#end#"
+        
+        correct_answer = re.findall(correct_pattern, res)
+        incorrect_answers = re.findall(wrong_pattern, res)
+        
+        # Remove "Wrong Answer" and "Correct Answer" text from the answers
+        correct_answer = [answer.replace("Correct Answer", "").strip() for answer in correct_answer]
+        incorrect_answers = [answer.replace("Wrong Answer", "").strip() for answer in incorrect_answers]
+        
+        if not correct_answer or len(incorrect_answers) < 3:
+            correct_answer = [placeholder]
+            incorrect_answers = [placeholder for _ in range(3)]
+
+        answers = correct_answer + incorrect_answers[:3]
+        random.shuffle(answers)
+        correct_index = answers.index(correct_answer[0])
+
+        # Clean the question if necessary
+        question = question if question and question.strip() != "#questionstart##questionend#" else placeholder
+
+        quiz_results.append({
+            "question": question,
+            "answers": answers,
+            "correct_index": correct_index
         })
 
-    # Assuming you have a LangChain chain or utility ready for generating questions
-    model_name = "gpt-3.5-turbo"  # Specify the model you're using for generative tasks
-    llm = ChatOpenAI(model_name=model_name)
-    qa_chain = SimpleGenerativeQA(llm)
-
-    # Generate a question and answer based on the context
-    generated_qa = qa_chain.generate_question_and_answer(context)
-
-    # Randomly generate incorrect options
-    incorrect_options = [f"Option {i}" for i in range(1, 4)]
-
-    # Include the correct answer in the options
-    options = incorrect_options + [generated_qa['answer']]
-    random.shuffle(options)  # Shuffle the options to randomize the correct answer's position
-
-    correct_answer_index = options.index(generated_qa['answer'])
-
-    return jsonify({
-        'question': generated_qa['question'],
-        'options': options,
-        'correct_answer_index': correct_answer_index
-    })
+    return jsonify(quiz_results)
 
 
 if __name__ == '__main__':
