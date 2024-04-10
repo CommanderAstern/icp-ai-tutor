@@ -3,50 +3,67 @@ import requests
 import shutil
 import zipfile
 from flask import Flask, request, jsonify
-from langchain.vectorstores import Chroma
+from langchain_community.vectorstores import Chroma
 from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.chains import load_qa_chain
+from langchain.chains.question_answering import load_qa_chain
 from langchain.chat_models import ChatOpenAI
+from dotenv import load_dotenv
+import pickle
 
+load_dotenv()
 app = Flask(__name__)
 
-@app.route('/query', methods=['GET'])
-def query_endpoint():
-    query = request.json['query']
-    temp_folder = f"temp_storage_{request.remote_addr}"
-    zip_path = f"./{temp_folder}/chroma_store_1_pdf.zip"
-    db_path = f"./{temp_folder}/chroma_store_1"
-    url = "http://ajuq4-ruaaa-aaaaa-qaaga-cai.localhost:4943/chroma_store_1_pdf.zip"
+# Dictionary to hold the initialized Chroma stores
+chroma_stores = {}
 
-    try:
+def initialize_chroma_stores():
+    """Initialize all Chroma stores and store them in the chroma_stores dictionary."""
+    for store_id in range(5):  # Assuming 5 stores
+        temp_folder = f"chroma_store_{store_id}"
+        zip_path = f"./{temp_folder}/chroma_store_{store_id}_pdf.zip"
+        db_path = f"./{temp_folder}"
+
+        # Download and extract the Chroma store data
+        # Using the same URL for all stores as a placeholder
+        url = "http://ajuq4-ruaaa-aaaaa-qaaga-cai.localhost:4943/chroma_store_1_pdf.zip"
         os.makedirs(temp_folder, exist_ok=True)
         response = requests.get(url)
         if response.status_code == 200:
             with open(zip_path, 'wb') as f:
                 f.write(response.content)
-            message = "File downloaded successfully."
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(db_path)
+            print(f"Chroma store {store_id} initialized.")
         else:
-            message = f"Failed to download the file. Status code: {response.status_code}"
-            return jsonify({'error': message}), 500
+            print(f"Failed to initialize Chroma store {store_id}. Status code: {response.status_code}")
+            continue
+        
+        # Initialize and store the Chroma object
+        db = Chroma(persist_directory=db_path+'/chroma_store', embedding_function=OpenAIEmbeddings())
+        chroma_stores[store_id] = db
 
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(db_path)
-        print(message)
+@app.route('/query', methods=['GET'])
+def query_endpoint():
+    data = request.json
+    query = data['query']
+    store_id = data.get('store_id', 0)
+    
+    if store_id < 0 or store_id > 4:
+        return jsonify({'error': 'store_id must be between 1 and 5'}), 400
 
-        db = Chroma(persist_directory=db_path, embedding_function=OpenAIEmbeddings())
-        model_name = "gpt-3.5-turbo"
-        llm = ChatOpenAI(model_name=model_name)
-        chain = load_qa_chain(llm, chain_type="stuff")
-        matching_docs = db.similarity_search(query)
-        answer = chain.run(input_documents=matching_docs, question=query)
+    # Select the Chroma store based on store_id
+    db = chroma_stores.get(store_id)
+    if not db:
+        return jsonify({'error': 'Chroma store not initialized'}), 500
 
-        db.close()  # Close the Chroma database connection
+    model_name = "gpt-3.5-turbo"
+    llm = ChatOpenAI(model_name=model_name)
+    chain = load_qa_chain(llm, chain_type="stuff")
+    matching_docs = db.similarity_search(query)
+    answer = chain.run(input_documents=matching_docs, question=query)
 
-        return jsonify({'answer': answer})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-    finally:
-        shutil.rmtree(temp_folder)
+    return jsonify({'answer': answer})
 
 if __name__ == '__main__':
-    app.run()
+    initialize_chroma_stores()
+    app.run(debug=True, port=8000)
