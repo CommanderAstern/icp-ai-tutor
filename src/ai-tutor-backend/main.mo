@@ -724,4 +724,19 @@ shared ({ caller = creator }) actor class () {
 
     response;
   };
+
+  public func getChatHistory(studentId: Nat, moduleId: Nat, lessonId: Nat): async ?[ChatMessage] {
+    let chatHistoryOpt = Array.find(state.chatHistory, func(ch: ChatHistory): Bool {
+      ch.studentId == studentId and ch.moduleId == moduleId and ch.lessonId == lessonId
+    });
+
+    switch (chatHistoryOpt) {
+      case (null) {
+        return null;
+      };
+      case (?chatHistory) {
+        return ?chatHistory.messages;
+      };
+    };
+  };
 };
