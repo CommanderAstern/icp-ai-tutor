@@ -27,3 +27,6 @@ dist/
 # anything in ml/pdfs
 **/ml/pdfs/*
 .mops
+
+ml/chroma_store/
+ml/temp_storage/
