@@ -26,3 +26,4 @@ dist/
 
 # anything in ml/pdfs
 **/ml/pdfs/*
+.mops

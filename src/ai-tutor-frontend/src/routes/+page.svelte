@@ -1,6 +1,7 @@
 <script>
   import "../index.scss";
   import { backend } from "$lib/canisters";
+  import { AssetManager } from "@dfinity/assets";
 
   let name = "";
   let role = "";

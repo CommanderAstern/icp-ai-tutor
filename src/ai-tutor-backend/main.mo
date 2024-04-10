@@ -3,7 +3,10 @@ import Error "mo:base/Error";
 import Bool "mo:base/Bool";
 import Nat "mo:base/Nat";
 
-actor {
+import Iter "mo:base/Iter";
+import Debug "mo:base/Debug";
+
+shared ({ caller = creator }) actor class () {
   type Question = {
     questionText: Text;
     options: [Text];
