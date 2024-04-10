@@ -2,9 +2,11 @@ import Array "mo:base/Array";
 import Error "mo:base/Error";
 import Bool "mo:base/Bool";
 import Nat "mo:base/Nat";
-
-import Iter "mo:base/Iter";
-import Debug "mo:base/Debug";
+import Types "Types";
+import Cycles "mo:base/ExperimentalCycles";
+import Nat8 "mo:base/Nat8";
+import Blob "mo:base/Blob";
+import Text "mo:base/Text";
 
 shared ({ caller = creator }) actor class () {
   type Question = {
@@ -438,13 +440,60 @@ shared ({ caller = creator }) actor class () {
     };
   };
 
-  public func uploadFile(bytes: Blob) : async Bool {
-      uploadedFile := ?bytes;
-      return true;
+  public func queryServer(queryText : Text, storeIndex : Nat) : async Text {
+    //1. DECLARE MANAGEMENT CANISTER
+    let ic : Types.IC = actor ("aaaaa-aa");
+
+    //2. SETUP ARGUMENTS FOR HTTP GET request
+    let host : Text = "wealthy-duck-coherent.ngrok-free.app";
+    let url = "https://" # host # "/query";
+
+    let request_headers = [
+      { name = "Host"; value = host # ":443" },
+      { name = "Content-Type"; value = "application/json" },
+    ];
+
+    let request_body_json: Text = "{\"query\":\"" # queryText # "\",\"store_id\":" # Nat.toText(storeIndex) # "}";
+    let request_body_as_Blob: Blob = Text.encodeUtf8(request_body_json);
+    let request_body_as_nat8: [Nat8] = Blob.toArray(request_body_as_Blob);
+
+    let transform_context : Types.TransformContext = {
+      function = transform;
+      context = Blob.fromArray([]);
+    };
+
+    let http_request : Types.HttpRequestArgs = {
+      url = url;
+      max_response_bytes = null;
+      headers = request_headers;
+      body = ?request_body_as_nat8;
+      method = #post; // Use POST method for sending JSON data
+      transform = ?transform_context;
+    };
+
+    //3. ADD CYCLES TO PAY FOR HTTP REQUEST
+    Cycles.add(20_949_972_000);
+
+    //4. MAKE HTTPS REQUEST AND WAIT FOR RESPONSE
+    let http_response : Types.HttpResponsePayload = await ic.http_request(http_request);
+
+    //5. DECODE THE RESPONSE
+    let response_body: Blob = Blob.fromArray(http_response.body);
+    let decoded_text: Text = switch (Text.decodeUtf8(response_body)) {
+      case (null) { "No value returned" };
+      case (?result) { result };
+    };
+
+    //6. RETURN RESPONSE OF THE BODY
+    decoded_text
   };
 
-  // Optional: Function to retrieve the file
-  public query func getFile() : async ?Blob {
-      return uploadedFile;
+  public query func transform(raw : Types.TransformArgs) : async Types.CanisterHttpResponsePayload {
+  let transformed : Types.CanisterHttpResponsePayload = {
+    status = raw.response.status;
+    body = raw.response.body;
+    headers = raw.response.headers;
   };
+  transformed;
+};
 };
