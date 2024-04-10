@@ -318,19 +318,84 @@ shared ({ caller = creator }) actor class () {
     };
   };
 
-  public func updateStudentProgress(studentId: Nat, updatedProgress: [StudentProgress]): async () {
-    let updatedStudents = Array.map(state.students, func(s: Student) : Student {
-      if (s.id == studentId) {
-        return {
-          id = s.id;
-          name = s.name;
+  public func updateLessonCompletion(studentId: Nat, moduleId: Nat, lessonId: Nat, completed: Bool): async () {
+    let studentOpt = Array.find(state.students, func(s: Student) : Bool { s.id == studentId });
+    switch (studentOpt) {
+      case (null) {
+        throw Error.reject("Student not found");
+      };
+      case (?student) {
+        let updatedProgress = Array.map(student.progress, func(p: StudentProgress) : StudentProgress {
+          if (p.moduleId == moduleId and p.lessonId == lessonId) {
+            {
+              studentId = p.studentId;
+              moduleId = p.moduleId;
+              lessonId = p.lessonId;
+              completed = completed;
+              quizScores = p.quizScores;
+            };
+          } else {
+            p;
+          };
+        });
+
+        let updatedStudent: Student = {
+          id = student.id;
+          name = student.name;
           progress = updatedProgress;
         };
-      } else {
-        return s;
-      }
-    });
-    state.students := updatedStudents;
+
+        let updatedStudents = Array.map(state.students, func(s: Student) : Student {
+          if (s.id == studentId) {
+            updatedStudent;
+          } else {
+            s;
+          };
+        });
+
+        state.students := updatedStudents;
+      };
+    };
+  };
+
+  public func updateQuizProgress(studentId: Nat, moduleId: Nat, lessonId: Nat, quizId: Nat, score: Nat): async () {
+    let studentOpt = Array.find(state.students, func(s: Student) : Bool { s.id == studentId });
+    switch (studentOpt) {
+      case (null) {
+        throw Error.reject("Student not found");
+      };
+      case (?student) {
+        let updatedProgress = Array.map(student.progress, func(p: StudentProgress) : StudentProgress {
+          if (p.moduleId == moduleId and p.lessonId == lessonId) {
+            {
+              studentId = p.studentId;
+              moduleId = p.moduleId;
+              lessonId = p.lessonId;
+              completed = p.completed;
+              quizScores = Array.append(p.quizScores, [(quizId, score)]);
+            };
+          } else {
+            p;
+          };
+        });
+
+        let updatedStudent: Student = {
+          id = student.id;
+          name = student.name;
+          progress = updatedProgress;
+        };
+
+        let updatedStudents = Array.map(state.students, func(s: Student) : Student {
+          if (s.id == studentId) {
+            updatedStudent;
+          } else {
+            s;
+          };
+        });
+
+        state.students := updatedStudents;
+      };
+    };
   };
 
   public func addStudent(name: Text): async () {

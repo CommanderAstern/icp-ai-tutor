@@ -24,10 +24,24 @@
   let lessonCompleted = false;
   let selectedModuleId = null;
   let selectedLessonId = null;
+  let questionQuery = "";
+
+  async function generateQuestions() {
+    if (questionQuery.trim() !== "") {
+      await backend.generateQuestion(selectedModuleId, selectedLessonId, questionQuery, 0);
+      // Refresh the quiz questions after generating new ones
+      await getQuizQuestions(selectedLesson.id);
+      questionQuery = "";
+    }
+  }
+
+  async function updateLessonCompletion() {
+    await backend.updateLessonCompletion(studentId, selectedModuleId, selectedLessonId, lessonCompleted);
+  }
 
   function selectLesson(moduleId, lessonId) {
-    selectedModuleId = moduleId;
-    selectedLessonId = lessonId;
+    selectedModuleId = Number(moduleId);
+    selectedLessonId = Number(lessonId);
     selectedLesson = modules.find(m => m.id === moduleId).lessons.find(l => l.id === lessonId);
     selectedAnswers = Array(selectedLesson.quiz.questions.length).fill(null);
     getChatHistory();
@@ -60,33 +74,6 @@
     const progress = await backend.getStudentProgress(studentId);
     const lessonProgress = progress.find(p => p.moduleId === selectedModuleId && p.lessonId === selectedLessonId);
     lessonCompleted = lessonProgress ? lessonProgress.completed : false;
-  }
-
-  async function updateProgress() {
-    const progress = await backend.getStudentProgress(studentId);
-    const updatedProgress = progress.map(p => {
-      if (p.moduleId === selectedModuleId && p.lessonId === selectedLessonId) {
-        return { ...p, completed: lessonCompleted };
-      }
-      return p;
-    });
-
-    // Check if the progress entry for the selected module and lesson exists
-    const existingProgressEntry = updatedProgress.find(p => p.moduleId === selectedModuleId && p.lessonId === selectedLessonId);
-
-    if (!existingProgressEntry) {
-      // If the progress entry doesn't exist, create a new one
-      const newProgressEntry = {
-        studentId: studentId,
-        moduleId: selectedModuleId,
-        lessonId: selectedLessonId,
-        completed: lessonCompleted,
-        quizScores: [],
-      };
-      updatedProgress.push(newProgressEntry);
-    }
-
-    await backend.updateStudentProgress(studentId, updatedProgress);
   }
 
   async function onSubmit(event) {
@@ -234,6 +221,10 @@
             <!-- Quiz Section -->
             <div class="quiz-section">
               <h5>Quiz</h5>
+              <div class="question-generation">
+                <input type="text" placeholder="Enter a query to generate questions" bind:value={questionQuery} />
+                <button on:click={generateQuestions}>Generate Questions</button>
+              </div>
               {#await getQuizQuestions(selectedLesson.id) then questions}
                 {#each questions as question, index}
                   <p>{index + 1}. {question.questionText}</p>
@@ -264,7 +255,7 @@
             <div class="progress-section">
               <h5>Progress</h5>
               <label>
-                <input type="checkbox" bind:checked={lessonCompleted} on:change={updateProgress}>
+                <input type="checkbox" bind:checked={lessonCompleted} on:change={updateLessonCompletion}>
                 Mark as Completed
               </label>
             </div>
