@@ -30,6 +30,18 @@ shared ({ caller = creator }) actor class () {
     role: Text; // "student", "teacher", or "none"
   };
 
+  type ChatMessage = {
+    sender: Text;
+    content: Text;
+  };
+
+  type ChatHistory = {
+    studentId: Nat;
+    moduleId: Nat;
+    lessonId: Nat;
+    messages: [ChatMessage];
+  };
+
   type Quiz = {
     questions: [Question];
     id: Nat;
@@ -84,7 +96,7 @@ shared ({ caller = creator }) actor class () {
     var students: [Student];
     var announcements: [Announcement];
     var users: [User];
-    var generatedQuestions: [GeneratedQuestion];
+    var chatHistory: [ChatHistory];
   };
 
   private var state: State = {
@@ -93,7 +105,7 @@ shared ({ caller = creator }) actor class () {
     var students = [];
     var announcements = [];
     var users = [];
-    var generatedQuestions = [];
+    var chatHistory = [];
   };
 
   // Counters for generating IDs
@@ -506,7 +518,7 @@ shared ({ caller = creator }) actor class () {
   transformed;
   };
 
-  public func generateQuestion(queryText : Text, storeIndex : Nat) : async [GeneratedQuestion] {
+  public func generateQuestion(moduleId: Nat, lessonId: Nat, queryText: Text, storeIndex: Nat): async () {
     //1. DECLARE MANAGEMENT CANISTER
     let ic : Types.IC = actor ("aaaaa-aa");
 
@@ -550,19 +562,54 @@ shared ({ caller = creator }) actor class () {
       case (?result) { result };
     };
 
-    // Parse the decoded JSON response into GeneratedQuestion type
-    let generatedQuestions: [GeneratedQuestion] = parseGeneratedQuestions(decoded_text);
+    // Parse the decoded JSON response into Question type
+    let generatedQuestions: [Question] = parseGeneratedQuestions(decoded_text);
 
-    // Store the generated questions in the state
-    for (question in generatedQuestions.vals()) {
-      state.generatedQuestions := Array.append(state.generatedQuestions, [question]);
-    };
-
-    //6. RETURN GENERATED QUESTIONS
-    generatedQuestions;
+    // Store the generated questions in the specified module and lesson
+    let updatedModules = Array.map(state.modules, func(m: Module): Module {
+      if (m.id == moduleId) {
+        let updatedLessons = Array.map(m.lessons, func(l: Lesson): Lesson {
+          if (l.id == lessonId) {
+            let updatedQuiz = switch (l.quiz) {
+              case (null) {
+                ?{
+                  questions = generatedQuestions;
+                  id = quizIdCounter;
+                };
+              };
+              case (?quiz) {
+                ?{
+                  questions = Array.append(quiz.questions, generatedQuestions);
+                  id = quiz.id;
+                };
+              };
+            };
+            {
+              id = l.id;
+              title = l.title;
+              content = l.content;
+              quiz = updatedQuiz;
+            };
+          } else {
+            l;
+          }
+        });
+        {
+          id = m.id;
+          title = m.title;
+          lessons = updatedLessons;
+          teacherId = m.teacherId;
+          teacherName = m.teacherName;
+        };
+      } else {
+        m;
+      }
+    });
+    state.modules := updatedModules;
+    quizIdCounter += 1;
   };
 
-  private func parseGeneratedQuestions(jsonText: Text) : [GeneratedQuestion] {
+  private func parseGeneratedQuestions(jsonText: Text): [Question] {
     switch (JSON.parse(jsonText)) {
       case (null) {
         // Parsing failed
@@ -571,23 +618,23 @@ shared ({ caller = creator }) actor class () {
       case (? json) {
         switch (json) {
           case (#Array(questions)) {
-            let generatedQuestions = Array.map(questions, func (q: JSON.JSON) : GeneratedQuestion {
+            let generatedQuestions = Array.map(questions, func (q: JSON.JSON) : Question {
               switch (q) {
                 case (#Object(fields)) {
                   let question = getTextField(fields, "question");
                   let answers = getArrayField(fields, "answers");
                   let correctAnswerIndex = getNatField(fields, "correct_index");
                   {
-                    question = question;
-                    answers = answers;
+                    questionText = question;
+                    options = answers;
                     correctAnswerIndex = correctAnswerIndex;
                   };
                 };
                 case (_) {
                   // Invalid question format
                   {
-                    question = "";
-                    answers = [];
+                    questionText = "";
+                    options = ["Placeholder", "Placeholder","Placeholder","Placeholder"];
                     correctAnswerIndex = 0;
                   };
                 };
