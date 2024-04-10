@@ -682,4 +682,46 @@ shared ({ caller = creator }) actor class () {
     };
   };
 
+  public func askQuestion(studentId: Nat, moduleId: Nat, lessonId: Nat, queryText: Text): async Text {
+    let response = await queryServer(queryText, 0);
+
+    // Store the chat history
+    let chatMessage: ChatMessage = {
+      sender = "Student";
+      content = queryText;
+    };
+    let assistantMessage: ChatMessage = {
+      sender = "Assistant";
+      content = response;
+    };
+
+    let updatedChatHistory = Array.map(state.chatHistory, func(ch: ChatHistory): ChatHistory {
+      if (ch.studentId == studentId and ch.moduleId == moduleId and ch.lessonId == lessonId) {
+        {
+          studentId = ch.studentId;
+          moduleId = ch.moduleId;
+          lessonId = ch.lessonId;
+          messages = Array.append(ch.messages, [chatMessage, assistantMessage]);
+        };
+      } else {
+        ch;
+      }
+    });
+
+    if (Array.find(updatedChatHistory, func(ch: ChatHistory): Bool {
+      ch.studentId == studentId and ch.moduleId == moduleId and ch.lessonId == lessonId
+    }) == null) {
+      let newChatHistory: ChatHistory = {
+        studentId = studentId;
+        moduleId = moduleId;
+        lessonId = lessonId;
+        messages = [chatMessage, assistantMessage];
+      };
+      state.chatHistory := Array.append(state.chatHistory, [newChatHistory]);
+    } else {
+      state.chatHistory := updatedChatHistory;
+    };
+
+    response;
+  };
 };
