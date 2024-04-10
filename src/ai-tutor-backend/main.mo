@@ -6,12 +6,21 @@ import Types "Types";
 import Cycles "mo:base/ExperimentalCycles";
 import Nat8 "mo:base/Nat8";
 import Blob "mo:base/Blob";
+import List "mo:base/List";
 import Text "mo:base/Text";
+import Int "mo:base/Int";
+import JSON "mo:json.mo";
 
 shared ({ caller = creator }) actor class () {
   type Question = {
     questionText: Text;
     options: [Text];
+    correctAnswerIndex: Nat;
+  };
+
+  type GeneratedQuestion = {
+    question: Text;
+    answers: [Text];
     correctAnswerIndex: Nat;
   };
 
@@ -75,6 +84,7 @@ shared ({ caller = creator }) actor class () {
     var students: [Student];
     var announcements: [Announcement];
     var users: [User];
+    var generatedQuestions: [GeneratedQuestion];
   };
 
   private var state: State = {
@@ -83,6 +93,7 @@ shared ({ caller = creator }) actor class () {
     var students = [];
     var announcements = [];
     var users = [];
+    var generatedQuestions = [];
   };
 
   // Counters for generating IDs
@@ -92,8 +103,6 @@ shared ({ caller = creator }) actor class () {
   private var announcementIdCounter: Nat = 0;
   private var teacherIdCounter: Nat = 0;
   private var studentIdCounter: Nat = 0;
-
-  stable var uploadedFile: ?Blob = null;
 
   public func addTeacher(name: Text): async () {
     // Check if the name is already taken
@@ -495,5 +504,135 @@ shared ({ caller = creator }) actor class () {
     headers = raw.response.headers;
   };
   transformed;
-};
+  };
+
+  public func generateQuestion(queryText : Text, storeIndex : Nat) : async [GeneratedQuestion] {
+    //1. DECLARE MANAGEMENT CANISTER
+    let ic : Types.IC = actor ("aaaaa-aa");
+
+    //2. SETUP ARGUMENTS FOR HTTP GET request
+    let host : Text = "wealthy-duck-coherent.ngrok-free.app";
+    let url = "https://" # host # "/generate_question";
+
+    let request_headers = [
+      { name = "Host"; value = host # ":443" },
+      { name = "Content-Type"; value = "application/json" },
+    ];
+
+    let request_body_json: Text = "{\"query\":\"" # queryText # "\",\"store_id\":" # Nat.toText(storeIndex) # "}";
+    let request_body_as_Blob: Blob = Text.encodeUtf8(request_body_json);
+    let request_body_as_nat8: [Nat8] = Blob.toArray(request_body_as_Blob);
+
+    let transform_context : Types.TransformContext = {
+      function = transform;
+      context = Blob.fromArray([]);
+    };
+
+    let http_request : Types.HttpRequestArgs = {
+      url = url;
+      max_response_bytes = null;
+      headers = request_headers;
+      body = ?request_body_as_nat8;
+      method = #post; // Use POST method for sending JSON data
+      transform = ?transform_context;
+    };
+
+    //3. ADD CYCLES TO PAY FOR HTTP REQUEST
+    Cycles.add(20_949_972_000);
+
+    //4. MAKE HTTPS REQUEST AND WAIT FOR RESPONSE
+    let http_response : Types.HttpResponsePayload = await ic.http_request(http_request);
+
+    //5. DECODE THE RESPONSE
+    let response_body: Blob = Blob.fromArray(http_response.body);
+    let decoded_text: Text = switch (Text.decodeUtf8(response_body)) {
+      case (null) { "No value returned" };
+      case (?result) { result };
+    };
+
+    // Parse the decoded JSON response into GeneratedQuestion type
+    let generatedQuestions: [GeneratedQuestion] = parseGeneratedQuestions(decoded_text);
+
+    // Store the generated questions in the state
+    for (question in generatedQuestions.vals()) {
+      state.generatedQuestions := Array.append(state.generatedQuestions, [question]);
+    };
+
+    //6. RETURN GENERATED QUESTIONS
+    generatedQuestions;
+  };
+
+  private func parseGeneratedQuestions(jsonText: Text) : [GeneratedQuestion] {
+    switch (JSON.parse(jsonText)) {
+      case (null) {
+        // Parsing failed
+        return [];
+      };
+      case (? json) {
+        switch (json) {
+          case (#Array(questions)) {
+            let generatedQuestions = Array.map(questions, func (q: JSON.JSON) : GeneratedQuestion {
+              switch (q) {
+                case (#Object(fields)) {
+                  let question = getTextField(fields, "question");
+                  let answers = getArrayField(fields, "answers");
+                  let correctAnswerIndex = getNatField(fields, "correct_index");
+                  {
+                    question = question;
+                    answers = answers;
+                    correctAnswerIndex = correctAnswerIndex;
+                  };
+                };
+                case (_) {
+                  // Invalid question format
+                  {
+                    question = "";
+                    answers = [];
+                    correctAnswerIndex = 0;
+                  };
+                };
+              };
+            });
+            generatedQuestions;
+          };
+          case (_) {
+            // Invalid JSON format
+            return [];
+          };
+        };
+      };
+    };
+  };
+
+  private func getTextField(fields: [(Text, JSON.JSON)], fieldName: Text) : Text {
+    switch (List.find(List.fromArray(fields), func ((name, _): (Text, JSON.JSON)) : Bool { name == fieldName })) {
+      case (null) { "" };
+      case (? (_, #String(value))) { value };
+      case (_) { "" };
+    };
+  };
+
+  private func getArrayField(fields: [(Text, JSON.JSON)], fieldName: Text) : [Text] {
+    switch (List.find(List.fromArray(fields), func ((name, _): (Text, JSON.JSON)) : Bool { name == fieldName })) {
+      case (null) { [] };
+      case (? (_, #Array(values))) {
+        Array.map(values, func (v: JSON.JSON) : Text {
+          switch (v) {
+            case (#String(value)) { value };
+            case (_) { "" };
+          };
+        });
+      };
+      case (_) { [] };
+    };
+  };
+
+  private func getNatField(fields: [(Text, JSON.JSON)], fieldName: Text) : Nat {
+    switch (List.find(List.fromArray(fields), func ((name, _): (Text, JSON.JSON)) : Bool { name == fieldName })) {
+      case (null) { 0 };
+      case (? (_, #Number(value))) { Int.abs(value) };
+      case (_) { 0 };
+    };
+  };
+
 };
