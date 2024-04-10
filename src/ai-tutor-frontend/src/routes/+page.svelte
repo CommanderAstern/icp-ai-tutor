@@ -89,7 +89,7 @@
   <br />
   <br />
 
-  {#if role === ""}
+  {#if role === "" || role === undefined || role[0] === ""}
     <form action="#" on:submit|preventDefault={onSubmit}>
       <label for="name">Enter your name: &nbsp;</label>
       <input id="name" alt="Name" type="text" />
@@ -135,11 +135,20 @@
         {#each modules as module}
           <div>
             <h5>{module.title}</h5>
-            <p>Teacher ID: {module.teacherId}</p>
+            <p>Teacher: {module.teacherName}</p>
             <h6>Announcements</h6>
             {#await getModuleAnnouncements(module.id) then announcements}
               {#each announcements as announcement}
                 <p>{announcement.content} - {announcement.date}</p>
+              {/each}
+            {/await}
+            <h6>Lessons</h6>
+            {#await backend.getLessonsByModule(module.id) then lessons}
+              {#each lessons as lesson}
+                <div>
+                  <h7>{lesson.title}</h7>
+                  <p>{lesson.content}</p>
+                </div>
               {/each}
             {/await}
           </div>

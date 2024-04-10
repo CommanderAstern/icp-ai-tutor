@@ -33,6 +33,7 @@ actor {
     title: Text;
     lessons: [Lesson];
     teacherId: Nat;
+    teacherName: Text;
   };
 
   type StudentProgress = {
@@ -108,45 +109,55 @@ actor {
   };
 
   public func addModule(teacherId: Nat, title: Text, lessons: [Lesson]): async () {
-    if (Array.find(state.teachers, func(t: Teacher) : Bool { t.id == teacherId }) != null) {
-      let newModule: Module = {
-        id = moduleIdCounter;
-        title = title;
-        lessons = lessons;
-        teacherId = teacherId;
+    let teacherOpt = Array.find(state.teachers, func(t: Teacher) : Bool { t.id == teacherId });
+    switch (teacherOpt) {
+      case (null) {
+        throw Error.reject("Teacher not found");
       };
-      state.modules := Array.append(state.modules, [newModule]);
-      moduleIdCounter += 1;
-    } else {
-      throw Error.reject("Teacher not found");
-    }
+      case (?teacher) {
+        let newModule: Module = {
+          id = moduleIdCounter;
+          title = title;
+          lessons = lessons;
+          teacherId = teacherId;
+          teacherName = teacher.name;
+        };
+        state.modules := Array.append(state.modules, [newModule]);
+        moduleIdCounter += 1;
+      };
+    };
   };
   
   public func addLesson(teacherId: Nat, moduleId: Nat, title: Text, content: Text, quiz: ?Quiz): async () {
-    if (Array.find(state.teachers, func(t: Teacher) : Bool { t.id == teacherId }) != null) {
-      let newLesson: Lesson = {
-        id = lessonIdCounter;
-        title = title;
-        content = content;
-        quiz = quiz;
+    let teacherOpt = Array.find(state.teachers, func(t: Teacher) : Bool { t.id == teacherId });
+    switch (teacherOpt) {
+      case (null) {
+        throw Error.reject("Teacher not found");
       };
-      let updatedModules = Array.map(state.modules, func(m: Module) : Module {
-        if (m.id == moduleId) {
-          return {
-            id = m.id;
-            title = m.title;
-            lessons = Array.append(m.lessons, [newLesson]);
-            teacherId = m.teacherId;
-          };
-        } else {
-          return m;
-        }
-      });
-      state.modules := updatedModules;
-      lessonIdCounter += 1;
-    } else {
-      throw Error.reject("Teacher not found");
-    }
+      case (?teacher) {
+        let newLesson: Lesson = {
+          id = lessonIdCounter;
+          title = title;
+          content = content;
+          quiz = quiz;
+        };
+        let updatedModules = Array.map(state.modules, func(m: Module) : Module {
+          if (m.id == moduleId) {
+            return {
+              id = m.id;
+              title = m.title;
+              lessons = Array.append(m.lessons, [newLesson]);
+              teacherId = m.teacherId;
+              teacherName = m.teacherName;
+            };
+          } else {
+            return m;
+          }
+        });
+        state.modules := updatedModules;
+        lessonIdCounter += 1;
+      };
+    };
   };
 
   public func setQuiz(moduleId: Nat, lessonId: Nat, questions: [Question]): async () {
@@ -175,6 +186,7 @@ actor {
           title = m.title;
           lessons = updatedLessons;
           teacherId = m.teacherId;
+          teacherName = m.teacherName;
         };
       } else {
         return m;
