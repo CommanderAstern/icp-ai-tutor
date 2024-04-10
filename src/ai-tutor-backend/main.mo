@@ -400,4 +400,24 @@ actor {
       };
     };
   };
+
+  public func getStudentIdByName(name: Text): async ?Nat {
+    let studentOpt = Array.find(state.students, func(s: Student) : Bool { s.name == name });
+    switch (studentOpt) {
+      case (null) { return null; }; // Student not found
+      case (?foundStudent) {
+        return ?foundStudent.id;
+      };
+    };
+  };
+
+  public func getTeacherIdByName(name: Text): async ?Nat {
+    let teacherOpt = Array.find(state.teachers, func(t: Teacher) : Bool { t.name == name });
+    switch (teacherOpt) {
+      case (null) { return null; }; // Teacher not found
+      case (?foundTeacher) {
+        return ?foundTeacher.id;
+      };
+    };
+  };
 };
