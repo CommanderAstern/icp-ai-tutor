@@ -10,7 +10,6 @@
   let announcements = [];
   let newAnnouncementContent = "";
   let newAnnouncementDate = "";
-  let selectedModuleId = null;
   let newModuleTitle = "";
   let newLessonTitle = "";
   let newLessonContent = "";
@@ -18,6 +17,77 @@
   let teacherId = null;
   let studentId = null;
   let fileToUpload = null;
+  let selectedLesson = null;
+  let selectedAnswers = [];
+  let chatHistory = [];
+  let newQuestion = "";
+  let lessonCompleted = false;
+  let selectedModuleId = null;
+  let selectedLessonId = null;
+
+  function selectLesson(moduleId, lessonId) {
+    selectedModuleId = moduleId;
+    selectedLessonId = lessonId;
+    selectedLesson = modules.find(m => m.id === moduleId).lessons.find(l => l.id === lessonId);
+    selectedAnswers = Array(selectedLesson.quiz.questions.length).fill(null);
+    getChatHistory();
+    checkLessonCompleted();
+  }
+
+  async function getQuizQuestions(lessonId) {
+    return await backend.getQuizQuestionsByLesson(selectedModuleId, lessonId, selectedLesson.quiz.id);
+  }
+
+  async function submitQuiz() {
+    await backend.submitQuizAnswers(studentId, selectedModuleId, selectedLessonId, selectedLesson.quiz.id, selectedAnswers);
+    // Display a success message or update the UI
+  }
+
+  async function sendQuestion() {
+    if (newQuestion.trim() !== "") {
+      const response = await backend.askQuestion(studentId, selectedModuleId, selectedLessonId, newQuestion);
+      chatHistory = [...chatHistory, { sender: "Student", content: newQuestion }, { sender: "Assistant", content: response }];
+      newQuestion = "";
+    }
+  }
+
+  async function getChatHistory() {
+    const history = await backend.getChatHistory(studentId, selectedModuleId, selectedLessonId);
+    chatHistory = history || [];
+  }
+
+  async function checkLessonCompleted() {
+    const progress = await backend.getStudentProgress(studentId);
+    const lessonProgress = progress.find(p => p.moduleId === selectedModuleId && p.lessonId === selectedLessonId);
+    lessonCompleted = lessonProgress ? lessonProgress.completed : false;
+  }
+
+  async function updateProgress() {
+    const progress = await backend.getStudentProgress(studentId);
+    const updatedProgress = progress.map(p => {
+      if (p.moduleId === selectedModuleId && p.lessonId === selectedLessonId) {
+        return { ...p, completed: lessonCompleted };
+      }
+      return p;
+    });
+
+    // Check if the progress entry for the selected module and lesson exists
+    const existingProgressEntry = updatedProgress.find(p => p.moduleId === selectedModuleId && p.lessonId === selectedLessonId);
+
+    if (!existingProgressEntry) {
+      // If the progress entry doesn't exist, create a new one
+      const newProgressEntry = {
+        studentId: studentId,
+        moduleId: selectedModuleId,
+        lessonId: selectedLessonId,
+        completed: lessonCompleted,
+        quizScores: [],
+      };
+      updatedProgress.push(newProgressEntry);
+    }
+
+    await backend.updateStudentProgress(studentId, updatedProgress);
+  }
 
   async function onSubmit(event) {
     const enteredName = event.target.name.value;
@@ -149,12 +219,57 @@
               {#each lessons as lesson}
                 <div>
                   <h7>{lesson.title}</h7>
-                  <p>{lesson.content}</p>
+                  <button on:click={() => selectLesson(module.id, lesson.id)}>View Lesson</button>
                 </div>
               {/each}
             {/await}
           </div>
         {/each}
+        <!-- Lesson View -->
+        {#if selectedLesson}
+          <div class="lesson-view">
+            <h4>{selectedLesson.title}</h4>
+            <p>{selectedLesson.content}</p>
+            
+            <!-- Quiz Section -->
+            <div class="quiz-section">
+              <h5>Quiz</h5>
+              {#await getQuizQuestions(selectedLesson.id) then questions}
+                {#each questions as question, index}
+                  <p>{index + 1}. {question.questionText}</p>
+                  {#each question.options as option, optionIndex}
+                    <label>
+                      <input type="radio" name="question{index}" value={optionIndex} bind:group={selectedAnswers[index]}>
+                      {option}
+                    </label>
+                  {/each}
+                {/each}
+                <button on:click={submitQuiz}>Submit Quiz</button>
+              {/await}
+            </div>
+            
+            <!-- Chat Section -->
+            <div class="chat-section">
+              <h5>Chat with AI</h5>
+              <div class="chat-history">
+                {#each chatHistory as message}
+                  <p class="{message.sender === 'Student' ? 'student-message' : 'assistant-message'}">{message.content}</p>
+                {/each}
+              </div>
+              <input type="text" placeholder="Ask a question" bind:value={newQuestion} />
+              <button on:click={sendQuestion}>Send</button>
+            </div>
+            
+            <!-- Progress Tracking -->
+            <div class="progress-section">
+              <h5>Progress</h5>
+              <label>
+                <input type="checkbox" bind:checked={lessonCompleted} on:change={updateProgress}>
+                Mark as Completed
+              </label>
+            </div>
+          </div>
+        {/if}
       {/if}
       <button on:click={() => { name = ""; role = ""; message = ""; }}>Logout</button>
     </section>
