@@ -16,6 +16,7 @@
   let newStudentName = "";
   let teacherId = null;
   let studentId = null;
+  let fileToUpload = null;
 
   async function onSubmit(event) {
     const enteredName = event.target.name.value;

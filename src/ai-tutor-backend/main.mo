@@ -88,6 +88,8 @@ actor {
   private var teacherIdCounter: Nat = 0;
   private var studentIdCounter: Nat = 0;
 
+  stable var uploadedFile: ?Blob = null;
+
   public func addTeacher(name: Text): async () {
     // Check if the name is already taken
     if (Array.find(state.users, func(u: User) : Bool { u.name == name }) != null) {
@@ -431,5 +433,15 @@ actor {
         return ?foundTeacher.id;
       };
     };
+  };
+
+  public func uploadFile(bytes: Blob) : async Bool {
+      uploadedFile := ?bytes;
+      return true;
+  };
+
+  // Optional: Function to retrieve the file
+  public query func getFile() : async ?Blob {
+      return uploadedFile;
   };
 };
