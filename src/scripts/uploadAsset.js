@@ -15,9 +15,9 @@ const identity = Ed25519KeyIdentity.generate(new Uint8Array(Array.from({length: 
 
 console.log(identity.getPrincipal());
 
-const filePath = 'chroma_store_1_pdf.zip';
-const HOST = `http://127.0.0.1:4943`;
-const canisterId = "ajuq4-ruaaa-aaaaa-qaaga-cai"
+const filePath = 'chroma_store_5_pdf.zip';
+const HOST = `https://ic0.app`;
+const canisterId = "hwtwo-6aaaa-aaaal-qiyta-cai"
 
 async function main() {
     const agent = new HttpAgent({ host: HOST, identity });
@@ -34,7 +34,7 @@ async function main() {
 
     try {
         const file = fs.readFileSync(filePath);
-        const fileName = "chroma_store_1_pdf.zip"
+        const fileName = filePath;
 
         const key = await assetManager.store(file, {fileName: fileName});
         console.log(`File uploaded successfully. Key: ${key}`);
