@@ -25,6 +25,11 @@
   let selectedModuleId = null;
   let selectedLessonId = null;
   let questionQuery = "";
+  let expandedStudentId = null;
+
+  function toggleStudentDetails(studentId) {
+    expandedStudentId = expandedStudentId === studentId ? null : studentId;
+  }
 
   async function generateQuestions() {
     if (questionQuery.trim() !== "") {
@@ -114,11 +119,31 @@
   async function loadData() {
     modules = await backend.getModules();
     announcements = await backend.viewAnnouncements();
+    console.log(await backend.getStudents())
     if (role[0] === "teacher") {
       teacherId = Number(await backend.getTeacherIdByName(name));
     } else if (role[0] === "student") {
       studentId = Number(await backend.getStudentIdByName(name));
     }
+  }
+
+  function getProgressInModule(progress, moduleId) {
+    console.log('Progress:', progress, moduleId);
+    for (let i = 0; i < progress.length; i++) {
+      if (progress[i].moduleId == moduleId) {
+        console.log('Progress in module:', progress[i]);
+        return progress[i];
+      }
+    }
+    return null;
+  }
+
+  function getModuleProgress(progress, moduleId) {
+    return progress.filter(p => p.moduleId == moduleId);
+  }
+
+  function getLessonProgress(moduleProgress, lessonId) {
+    return moduleProgress.find(p => p.lessonId == lessonId);
   }
 
   async function createAnnouncement() {
@@ -253,44 +278,73 @@
         <h4>Create Student</h4>
         <input type="text" placeholder="Student Name" bind:value={newStudentName} />
         <button on:click={createStudent}>Create Student</button>
-        <!-- <h4>Student Progress</h4>
+        <h4>Student Progress</h4>
         <table>
           <thead>
             <tr>
               <th>Student</th>
-              {#each modules as module}
-                <th>{module.title}</th>
-              {/each}
+              <th>Progress</th>
             </tr>
           </thead>
           <tbody>
-            {#each $backend.getStudents() as student}
-              <tr>
-                <td>{student.name}</td>
-                {#each modules as module}
+            {#await backend.getStudents() then studentsData}
+              {#each studentsData as studentData}
+                {@const student = studentData}
+                <tr>
+                  <td>{student.name}</td>
                   <td>
-                    {#if student.progress}
-                      {#each student.progress as lessonProgress}
-                        {#if lessonProgress.moduleId === module.id}
-                          {#if lessonProgress.completed}
-                            <p>Lesson {lessonProgress.lessonId + 1}: Completed</p>
-                            {#if lessonProgress.quizScore}
-                              <p>Quiz Score: {lessonProgress.quizScore[0]} / {lessonProgress.quizScore[1]}</p>
-                            {/if}
-                          {:else}
-                            <p>Lesson {lessonProgress.lessonId + 1}: In Progress</p>
-                          {/if}
-                        {/if}
-                      {/each}
-                    {:else}
-                      <p>No Progress</p>
-                    {/if}
+                    <button on:click={() => toggleStudentDetails(student.id)}>
+                      {expandedStudentId === student.id ? 'Hide Details' : 'Show Details'}
+                    </button>
                   </td>
-                {/each}
-              </tr>
-            {/each}
+                </tr>
+                {#if expandedStudentId === student.id}
+                  <tr>
+                    <td colspan="2">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Module</th>
+                            <th>Lesson</th>
+                            <th>Completed</th>
+                            <th>Quiz Score</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {#each modules as module}
+                            {@const moduleProgress = getModuleProgress(student.progress, module.id)}
+                            {#if moduleProgress.length > 0}
+                              {#each module.lessons as lesson}
+                                {@const lessonProgress = getLessonProgress(moduleProgress, lesson.id)}
+                                <tr>
+                                  <td>{module.title}</td>
+                                  <td>{lesson.title}</td>
+                                  <td>{lessonProgress ? (lessonProgress.completed ? 'Yes' : 'No') : 'No'}</td>
+                                  <td>
+                                    {#if lessonProgress && lessonProgress.quizScore}
+                                      {`${Number(lessonProgress.quizScore[0][0])} / ${Number(lessonProgress.quizScore[0][1])}`}
+                                    {:else}
+                                      N/A
+                                    {/if}
+                                  </td>
+                                </tr>
+                              {/each}
+                            {:else}
+                              <tr>
+                                <td>{module.title}</td>
+                                <td colspan="3">No progress in this module</td>
+                              </tr>
+                            {/if}
+                          {/each}
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                {/if}
+              {/each}
+            {/await}
           </tbody>
-        </table> -->
+        </table>
       {:else if role[0] === "student"}
         <h3>Student Dashboard</h3>
         <h4>Modules</h4>
