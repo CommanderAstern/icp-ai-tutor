@@ -44,7 +44,6 @@ shared ({ caller = creator }) actor class () {
 
   type Quiz = {
     questions: [Question];
-    id: Nat;
   };
 
   type Lesson = {
@@ -67,7 +66,7 @@ shared ({ caller = creator }) actor class () {
     moduleId: Nat;
     lessonId: Nat;
     completed: Bool;
-    quizScores: [(Nat, Nat)];
+    quizScore: ?(Nat, Nat); // (score, totalQuestions)
   };
 
   type Teacher = {
@@ -111,7 +110,6 @@ shared ({ caller = creator }) actor class () {
   // Counters for generating IDs
   private var moduleIdCounter: Nat = 0;
   private var lessonIdCounter: Nat = 0;
-  private var quizIdCounter: Nat = 0;
   private var announcementIdCounter: Nat = 0;
   private var teacherIdCounter: Nat = 0;
   private var studentIdCounter: Nat = 0;
@@ -188,51 +186,12 @@ shared ({ caller = creator }) actor class () {
     };
   };
 
-  public func setQuiz(moduleId: Nat, lessonId: Nat, questions: [Question]): async () {
-    var quizSet: Bool = false;
-    let newQuiz: Quiz = {
-      questions = questions;
-      id = quizIdCounter;
-    };
-    let updatedModules: [Module] = Array.map(state.modules, func (m: Module) : Module {
-      if (m.id == moduleId) {
-        let updatedLessons: [Lesson] = Array.map(m.lessons, func (l: Lesson) : Lesson {
-          if (l.id == lessonId) {
-            quizSet := true;
-            return {
-              id = l.id;
-              title = l.title;
-              content = l.content;
-              quiz = ?newQuiz;
-            };
-          } else {
-            return l;
-          }
-        });
-        return {
-          id = m.id;
-          title = m.title;
-          lessons = updatedLessons;
-          teacherId = m.teacherId;
-          teacherName = m.teacherName;
-        };
-      } else {
-        return m;
-      }
-    });
-    state.modules := updatedModules;
-    quizIdCounter += 1;
-    if (not quizSet) {
-      throw Error.reject("Quiz not set");
-    }
-  };
-
 
   public func getModules(): async [Module] {
     return state.modules;
   };
 
-  public func getQuizQuestionsByLesson(moduleId: Nat, lessonId: Nat, quizId: Nat): async ?([Question], [[Text]]) {
+  public func getQuizQuestionsByLesson(moduleId: Nat, lessonId: Nat): async ?([Question], [[Text]]) {
     let moduleOpt = Array.find(state.modules, func(m: Module) : Bool { m.id == moduleId });
     switch (moduleOpt) {
       case (null) { return null; }; // Module not found
@@ -244,7 +203,6 @@ shared ({ caller = creator }) actor class () {
             switch (foundLesson.quiz) {
               case (null) { return null; }; // Quiz not found
               case (?foundQuiz) {
-                if (foundQuiz.id != quizId) { return null; }; // Quiz ID mismatch
                 let questions = foundQuiz.questions;
                 let options = Array.map(questions, func(q: Question) : [Text] {
                   q.options
@@ -258,7 +216,7 @@ shared ({ caller = creator }) actor class () {
     };
   };
 
-  public func getQuizQuestionsByLessonAdmin(moduleId: Nat, lessonId: Nat, quizId: Nat): async ?([Question], [[Text]], [Nat]) {
+  public func getQuizQuestionsByLessonAdmin(moduleId: Nat, lessonId: Nat): async ?([Question], [[Text]], [Nat]) {
     let moduleOpt = Array.find(state.modules, func(m: Module) : Bool { m.id == moduleId });
     switch (moduleOpt) {
       case (null) { return null; }; // Module not found
@@ -270,7 +228,6 @@ shared ({ caller = creator }) actor class () {
             switch (foundLesson.quiz) {
               case (null) { return null; }; // Quiz not found
               case (?foundQuiz) {
-                if (foundQuiz.id != quizId) { return null; }; // Quiz ID mismatch
                 let questions = foundQuiz.questions;
                 let options = Array.map(questions, func(q: Question) : [Text] {
                   q.options
@@ -332,7 +289,7 @@ shared ({ caller = creator }) actor class () {
               moduleId = p.moduleId;
               lessonId = p.lessonId;
               completed = completed;
-              quizScores = p.quizScores;
+              quizScore = p.quizScore; // Updated field name
             };
           } else {
             p;
@@ -358,45 +315,45 @@ shared ({ caller = creator }) actor class () {
     };
   };
 
-  public func updateQuizProgress(studentId: Nat, moduleId: Nat, lessonId: Nat, quizId: Nat, score: Nat): async () {
-    let studentOpt = Array.find(state.students, func(s: Student) : Bool { s.id == studentId });
-    switch (studentOpt) {
-      case (null) {
-        throw Error.reject("Student not found");
-      };
-      case (?student) {
-        let updatedProgress = Array.map(student.progress, func(p: StudentProgress) : StudentProgress {
-          if (p.moduleId == moduleId and p.lessonId == lessonId) {
-            {
-              studentId = p.studentId;
-              moduleId = p.moduleId;
-              lessonId = p.lessonId;
-              completed = p.completed;
-              quizScores = Array.append(p.quizScores, [(quizId, score)]);
-            };
-          } else {
-            p;
-          };
-        });
+  // public func updateQuizProgress(studentId: Nat, moduleId: Nat, lessonId: Nat, quizId: Nat, score: Nat): async () {
+  //   let studentOpt = Array.find(state.students, func(s: Student) : Bool { s.id == studentId });
+  //   switch (studentOpt) {
+  //     case (null) {
+  //       throw Error.reject("Student not found");
+  //     };
+  //     case (?student) {
+  //       let updatedProgress = Array.map(student.progress, func(p: StudentProgress) : StudentProgress {
+  //         if (p.moduleId == moduleId and p.lessonId == lessonId) {
+  //           {
+  //             studentId = p.studentId;
+  //             moduleId = p.moduleId;
+  //             lessonId = p.lessonId;
+  //             completed = p.completed;
+  //             quizScores = Array.append(p.quizScores, [(quizId, score)]);
+  //           };
+  //         } else {
+  //           p;
+  //         };
+  //       });
 
-        let updatedStudent: Student = {
-          id = student.id;
-          name = student.name;
-          progress = updatedProgress;
-        };
+  //       let updatedStudent: Student = {
+  //         id = student.id;
+  //         name = student.name;
+  //         progress = updatedProgress;
+  //       };
 
-        let updatedStudents = Array.map(state.students, func(s: Student) : Student {
-          if (s.id == studentId) {
-            updatedStudent;
-          } else {
-            s;
-          };
-        });
+  //       let updatedStudents = Array.map(state.students, func(s: Student) : Student {
+  //         if (s.id == studentId) {
+  //           updatedStudent;
+  //         } else {
+  //           s;
+  //         };
+  //       });
 
-        state.students := updatedStudents;
-      };
-    };
-  };
+  //       state.students := updatedStudents;
+  //     };
+  //   };
+  // };
 
   public func addStudent(name: Text): async () {
     // Check if the name is already taken
@@ -446,7 +403,7 @@ shared ({ caller = creator }) actor class () {
     };
   };
 
-  public func submitQuizAnswers(studentId: Nat, moduleId: Nat, lessonId: Nat, quizId: Nat, answers: [Nat]): async () {
+  public func submitQuizAnswers(studentId: Nat, moduleId: Nat, lessonId: Nat, answers: [Nat]): async () {
     let moduleOpt = Array.find(state.modules, func(m: Module) : Bool { m.id == moduleId });
     switch (moduleOpt) {
       case (null) { return; }; // Module not found
@@ -458,7 +415,6 @@ shared ({ caller = creator }) actor class () {
             switch (foundLesson.quiz) {
               case (null) { return; }; // Quiz not found
               case (?foundQuiz) {
-                if (foundQuiz.id != quizId) { return; }; // Quiz ID mismatch
                 // Generate an array of scores (1 or 0) for each question
                 let scores = Array.tabulate(foundQuiz.questions.size(), func(i : Nat) : Nat {
                   if (i < answers.size() and answers[i] == foundQuiz.questions[i].correctAnswerIndex) {
@@ -482,7 +438,7 @@ shared ({ caller = creator }) actor class () {
                           moduleId = p.moduleId;
                           lessonId = p.lessonId;
                           completed = true;
-                          quizScores = Array.append(p.quizScores, [(quizId, score)]);
+                          quizScore = ?(score, foundQuiz.questions.size());
                         };
                       } else {
                         return p;
@@ -639,13 +595,12 @@ shared ({ caller = creator }) actor class () {
               case (null) {
                 ?{
                   questions = generatedQuestions;
-                  id = quizIdCounter;
+                  id = 0; // Assign a default quiz ID of 0
                 };
               };
               case (?quiz) {
                 ?{
                   questions = Array.append(quiz.questions, generatedQuestions);
-                  id = quiz.id;
                 };
               };
             };
@@ -671,7 +626,6 @@ shared ({ caller = creator }) actor class () {
       }
     });
     state.modules := updatedModules;
-    quizIdCounter += 1;
   };
 
   private func parseGeneratedQuestions(jsonText: Text): [Question] {

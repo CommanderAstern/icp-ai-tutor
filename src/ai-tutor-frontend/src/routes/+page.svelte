@@ -49,11 +49,27 @@
   }
 
   async function getQuizQuestions(lessonId) {
-    return await backend.getQuizQuestionsByLesson(selectedModuleId, lessonId, selectedLesson.quiz.id);
+    const res = await backend.getQuizQuestionsByLesson(selectedModuleId, lessonId);
+    console.log('Quiz questions response:', res);
+    // Check if the response is an array and has at least one element
+    if (Array.isArray(res) && res.length > 0) {
+      // Assuming the response is an array of question objects
+      const questions = res[0][0].map((questionObject, index) => ({
+        id: index + 1,
+        questionText: questionObject.questionText || 'Question text not available',
+        options: questionObject.options || [],
+      }));
+
+      console.log('Quiz questions:', questions);
+      return questions;
+    } else {
+      console.log('Invalid response format:', res);
+      return [];
+    }
   }
 
   async function submitQuiz() {
-    await backend.submitQuizAnswers(studentId, selectedModuleId, selectedLessonId, selectedLesson.quiz.id, selectedAnswers);
+    await backend.submitQuizAnswers(studentId, selectedModuleId, selectedLessonId, selectedAnswers);
     // Display a success message or update the UI
   }
 
@@ -226,17 +242,23 @@
                 <button on:click={generateQuestions}>Generate Questions</button>
               </div>
               {#await getQuizQuestions(selectedLesson.id) then questions}
-                {#each questions as question, index}
-                  <p>{index + 1}. {question.questionText}</p>
-                  {#each question.options as option, optionIndex}
-                    <label>
-                      <input type="radio" name="question{index}" value={optionIndex} bind:group={selectedAnswers[index]}>
-                      {option}
-                    </label>
+                {#if questions.length > 0}
+                  {#each questions as question}
+                    <p>{question.id}. {question.questionText}</p>
+                    {#each question.options as option, optionIndex}
+                      <label>
+                        <input type="radio" name="question{question.id}" value={optionIndex} bind:group={selectedAnswers[question.id - 1]}>
+                        {option}
+                      </label>
+                    {/each}
                   {/each}
-                {/each}
-                <button on:click={submitQuiz}>Submit Quiz</button>
+                  <button on:click={submitQuiz}>Submit Quiz</button>
+                {:else}
+                  <p>No questions available.</p>
+                {/if}
               {/await}
+            
+            
             </div>
             
             <!-- Chat Section -->
@@ -258,6 +280,9 @@
                 <input type="checkbox" bind:checked={lessonCompleted} on:change={updateLessonCompletion}>
                 Mark as Completed
               </label>
+              <!-- {#if lessonProgress && lessonProgress.quizScores.length > 0}
+                <p>Quiz Score: {lessonProgress.quizScores[lessonProgress.quizScores.length - 1][1]} / {lessonProgress.quizScores[lessonProgress.quizScores.length - 1][2]}</p>
+              {/if} -->
             </div>
           </div>
         {/if}
