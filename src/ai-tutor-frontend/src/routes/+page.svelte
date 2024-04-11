@@ -31,6 +31,7 @@
       await backend.generateQuestion(selectedModuleId, selectedLessonId, questionQuery, 0);
       // Refresh the quiz questions after generating new ones
       await getQuizQuestions(selectedLesson.id);
+      getQuizQuestions(selectedLesson.id);
       questionQuery = "";
     }
   }
@@ -69,6 +70,7 @@
   }
 
   async function submitQuiz() {
+    console.log('Submitting quiz answers:', selectedAnswers, studentId, selectedModuleId, selectedLessonId);
     await backend.submitQuizAnswers(studentId, selectedModuleId, selectedLessonId, selectedAnswers);
     // Display a success message or update the UI
   }
@@ -147,6 +149,52 @@
     }
   }
 
+  async function getProgress() {
+    await loadData();
+    console.log('Getting progress for student:', studentId);
+    let res = await backend.getStudentProgress(studentId);
+    console.log('Progress response:', res);
+    console.log('Module', modules);
+    console.log('Students', await backend.getStudents());
+    return res;
+  }
+
+  async function calculateStudentProgress() {
+    await loadData();
+    let studentProgress = await backend.getStudentProgress(studentId);
+    console.log('Student progress:', studentProgress);
+    console.log('Modules:', modules);
+    return modules.map(module => {
+    const totalLessons = module.lessons.length;
+    let completedLessons = 0;
+    let totalScore = 0;
+    let obtainedScore = 0;
+
+    studentProgress.forEach(progress => {
+      progress = progress;
+      console.log('Progress:', progress[0].moduleId, module.id, progress[0].completed, progress[0].quizScore);
+      if (progress[0].moduleId == module.id) {
+        if (progress[0].completed) {
+          completedLessons += 1;
+          if (progress[0].quizScore && progress[0].quizScore.length > 0) {
+            obtainedScore += Number(progress[0].quizScore[0][0]); // First element of first pair is obtained score
+            totalScore += Number(progress[0].quizScore[0][1]); // Second element of first pair is total score
+          }
+        }
+      }
+    });
+
+    const progressIndicator = `${completedLessons}/${totalLessons}`;
+    // Avoid division by zero
+    const averageScorePercent = totalScore > 0 ? ((obtainedScore / totalScore) * 100).toFixed(2) : "N/A";
+
+    return {
+      moduleId: module.id,
+      progressIndicator,
+      averageScorePercent
+    };
+  });
+  }
 
   async function createStudent() {
     await backend.addStudent(newStudentName);
@@ -173,6 +221,7 @@
   {:else}
     <section id="greeting">
       <h2>{message}</h2>
+      <!-- Teacher Dashboard -->
       {#if role[0] === "teacher"}
         <h3>Teacher Dashboard</h3>
         <h4>Create Module</h4>
@@ -204,12 +253,61 @@
         <h4>Create Student</h4>
         <input type="text" placeholder="Student Name" bind:value={newStudentName} />
         <button on:click={createStudent}>Create Student</button>
+        <!-- <h4>Student Progress</h4>
+        <table>
+          <thead>
+            <tr>
+              <th>Student</th>
+              {#each modules as module}
+                <th>{module.title}</th>
+              {/each}
+            </tr>
+          </thead>
+          <tbody>
+            {#each $backend.getStudents() as student}
+              <tr>
+                <td>{student.name}</td>
+                {#each modules as module}
+                  <td>
+                    {#if student.progress}
+                      {#each student.progress as lessonProgress}
+                        {#if lessonProgress.moduleId === module.id}
+                          {#if lessonProgress.completed}
+                            <p>Lesson {lessonProgress.lessonId + 1}: Completed</p>
+                            {#if lessonProgress.quizScore}
+                              <p>Quiz Score: {lessonProgress.quizScore[0]} / {lessonProgress.quizScore[1]}</p>
+                            {/if}
+                          {:else}
+                            <p>Lesson {lessonProgress.lessonId + 1}: In Progress</p>
+                          {/if}
+                        {/if}
+                      {/each}
+                    {:else}
+                      <p>No Progress</p>
+                    {/if}
+                  </td>
+                {/each}
+              </tr>
+            {/each}
+          </tbody>
+        </table> -->
       {:else if role[0] === "student"}
         <h3>Student Dashboard</h3>
         <h4>Modules</h4>
         {#each modules as module}
           <div>
             <h5>{module.title}</h5>
+            {#await calculateStudentProgress() then progress}
+              {#if progress}
+                {#each progress as p}
+                  {#if p.moduleId === module.id}
+                    <p>Progress: {p.progressIndicator}</p>
+                    <p>Average Quiz Score: {p.averageScorePercent}%</p>
+                  {/if}
+                {/each}
+              {/if}
+            {/await}
+
             <p>Teacher: {module.teacherName}</p>
             <h6>Announcements</h6>
             {#await getModuleAnnouncements(module.id) then announcements}
@@ -280,9 +378,6 @@
                 <input type="checkbox" bind:checked={lessonCompleted} on:change={updateLessonCompletion}>
                 Mark as Completed
               </label>
-              <!-- {#if lessonProgress && lessonProgress.quizScores.length > 0}
-                <p>Quiz Score: {lessonProgress.quizScores[lessonProgress.quizScores.length - 1][1]} / {lessonProgress.quizScores[lessonProgress.quizScores.length - 1][2]}</p>
-              {/if} -->
             </div>
           </div>
         {/if}

@@ -431,19 +431,40 @@ shared ({ caller = creator }) actor class () {
                 // Update student progress
                 let updatedStudents = Array.map(state.students, func(s: Student) : Student {
                   if (s.id == studentId) {
-                    let updatedProgress = Array.map(s.progress, func(p: StudentProgress) : StudentProgress {
-                      if (p.moduleId == moduleId and p.lessonId == lessonId) {
-                        return {
-                          studentId = p.studentId;
-                          moduleId = p.moduleId;
-                          lessonId = p.lessonId;
+                    let progressOpt = Array.find(s.progress, func(p: StudentProgress) : Bool {
+                      p.moduleId == moduleId and p.lessonId == lessonId
+                    });
+                    
+                    let updatedProgress = switch (progressOpt) {
+                      case (null) {
+                        // Create a new progress entry
+                        let newProgress: StudentProgress = {
+                          studentId = studentId;
+                          moduleId = moduleId;
+                          lessonId = lessonId;
                           completed = true;
                           quizScore = ?(score, foundQuiz.questions.size());
                         };
-                      } else {
-                        return p;
-                      }
-                    });
+                        Array.append(s.progress, [newProgress]);
+                      };
+                      case (?_) {
+                        // Update the existing progress entry
+                        Array.map(s.progress, func(p: StudentProgress) : StudentProgress {
+                          if (p.moduleId == moduleId and p.lessonId == lessonId) {
+                            return {
+                              studentId = p.studentId;
+                              moduleId = p.moduleId;
+                              lessonId = p.lessonId;
+                              completed = true;
+                              quizScore = ?(score, foundQuiz.questions.size());
+                            };
+                          } else {
+                            return p;
+                          }
+                        });
+                      };
+                    };
+                    
                     return {
                       id = s.id;
                       name = s.name;
@@ -453,6 +474,7 @@ shared ({ caller = creator }) actor class () {
                     return s;
                   }
                 });
+
                 state.students := updatedStudents;
               };
             };
@@ -461,7 +483,7 @@ shared ({ caller = creator }) actor class () {
       };
     };
   };
-
+  
   public func getStudentIdByName(name: Text): async ?Nat {
     let studentOpt = Array.find(state.students, func(s: Student) : Bool { s.name == name });
     switch (studentOpt) {
