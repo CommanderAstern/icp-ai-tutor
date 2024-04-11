@@ -27,7 +27,7 @@ def initialize_chroma_stores():
 
         # Download and extract the Chroma store data
         # Using the same URL for all stores as a placeholder
-        url = "http://ajuq4-ruaaa-aaaaa-qaaga-cai.localhost:4943/chroma_store_1_pdf.zip"
+        url = "https://hwtwo-6aaaa-aaaal-qiyta-cai.icp0.io/"+f"chroma_store_{store_id+1}_pdf.zip"
         os.makedirs(temp_folder, exist_ok=True)
         response = requests.get(url)
         if response.status_code == 200:
