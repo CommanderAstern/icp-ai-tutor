@@ -276,43 +276,53 @@ shared ({ caller = creator }) actor class () {
   };
 
   public func updateLessonCompletion(studentId: Nat, moduleId: Nat, lessonId: Nat, completed: Bool): async () {
-    let studentOpt = Array.find(state.students, func(s: Student) : Bool { s.id == studentId });
-    switch (studentOpt) {
-      case (null) {
-        throw Error.reject("Student not found");
-      };
-      case (?student) {
-        let updatedProgress = Array.map(student.progress, func(p: StudentProgress) : StudentProgress {
-          if (p.moduleId == moduleId and p.lessonId == lessonId) {
-            {
-              studentId = p.studentId;
-              moduleId = p.moduleId;
-              lessonId = p.lessonId;
-              completed = completed;
-              quizScore = p.quizScore; // Updated field name
-            };
-          } else {
-            p;
-          };
+    let updatedStudents = Array.map(state.students, func(s: Student) : Student {
+      if (s.id == studentId) {
+        let progressOpt = Array.find(s.progress, func(p: StudentProgress) : Bool {
+          p.moduleId == moduleId and p.lessonId == lessonId
         });
-
-        let updatedStudent: Student = {
-          id = student.id;
-          name = student.name;
+        
+        let updatedProgress = switch (progressOpt) {
+          case (null) {
+            // Create a new progress entry
+            let newProgress: StudentProgress = {
+              studentId = studentId;
+              moduleId = moduleId;
+              lessonId = lessonId;
+              completed = completed;
+              quizScore = null;
+            };
+            Array.append(s.progress, [newProgress]);
+          };
+          case (?_) {
+            // Update the existing progress entry
+            Array.map(s.progress, func(p: StudentProgress) : StudentProgress {
+              if (p.moduleId == moduleId and p.lessonId == lessonId) {
+                return {
+                  studentId = p.studentId;
+                  moduleId = p.moduleId;
+                  lessonId = p.lessonId;
+                  completed = completed;
+                  quizScore = p.quizScore;
+                };
+              } else {
+                return p;
+              }
+            });
+          };
+        };
+        
+        return {
+          id = s.id;
+          name = s.name;
           progress = updatedProgress;
         };
+      } else {
+        return s;
+      }
+    });
 
-        let updatedStudents = Array.map(state.students, func(s: Student) : Student {
-          if (s.id == studentId) {
-            updatedStudent;
-          } else {
-            s;
-          };
-        });
-
-        state.students := updatedStudents;
-      };
-    };
+    state.students := updatedStudents;
   };
 
   // public func updateQuizProgress(studentId: Nat, moduleId: Nat, lessonId: Nat, quizId: Nat, score: Nat): async () {
@@ -724,7 +734,7 @@ shared ({ caller = creator }) actor class () {
   };
 
   public func askQuestion(studentId: Nat, moduleId: Nat, lessonId: Nat, queryText: Text): async Text {
-    let response = await queryServer(queryText, 0);
+    let response = await queryServer(queryText, moduleId);
 
     // Store the chat history
     let chatMessage: ChatMessage = {
