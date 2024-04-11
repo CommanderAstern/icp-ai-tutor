@@ -17,6 +17,10 @@ app = Flask(__name__)
 
 # Dictionary to hold the initialized Chroma stores
 chroma_stores = {}
+random.seed(42)
+
+query_cache = {}
+generate_question_cache = {}
 
 def initialize_chroma_stores():
     """Initialize all Chroma stores and store them in the chroma_stores dictionary."""
@@ -49,7 +53,13 @@ def query_endpoint():
     data = request.json
     query = data['query']
     store_id = data.get('store_id', 0)
+
+    if query+str(store_id) in query_cache:
+        print(jsonify(query_cache[query+str(store_id)]))
+        return jsonify(query_cache[query+str(store_id)])
+
     
+
     if store_id < 0 or store_id > 4:
         return jsonify({'error': 'store_id must be between 1 and 5'}), 400
 
@@ -59,18 +69,24 @@ def query_endpoint():
         return jsonify({'error': 'Chroma store not initialized'}), 500
 
     model_name = "gpt-3.5-turbo"
-    llm = ChatOpenAI(model_name=model_name)
+    llm = ChatOpenAI(model_name=model_name, temperature=0, model_kwargs={"seed": 42})
     chain = load_qa_chain(llm, chain_type="stuff")
     matching_docs = db.similarity_search(query)
     answer = chain.run(input_documents=matching_docs, question=query)
-
-    return jsonify({'answer': answer})
+    response = {'answer': answer}
+    query_cache[query+str(store_id)] = response
+    print(response)
+    return jsonify(response)
 
 @app.route('/generate_question', methods=['GET', 'POST'])
 def generate_question_endpoint():
     data = request.json
     query = data['query']
     store_id = data.get('store_id', 0)
+
+    if query+str(store_id) in generate_question_cache:
+        return jsonify(generate_question_cache[query+str(store_id)])
+
 
     if store_id < 0 or store_id > 4:
         return jsonify({'error': 'store_id must be between 0 and 4'}), 400
@@ -79,7 +95,7 @@ def generate_question_endpoint():
     if not db:
         return jsonify({'error': 'Chroma store not initialized'}), 500
 
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo")
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
 
     # Assuming `load_qa_chain()` is a defined function that loads the QA chain
     chain = load_qa_chain(llm, chain_type="stuff")
@@ -146,10 +162,10 @@ def generate_question_endpoint():
             "answers": answers,
             "correct_index": correct_index
         })
-
+    generate_question_cache[query+str(store_id)] = quiz_results
     return jsonify(quiz_results)
 
 
 if __name__ == '__main__':
     initialize_chroma_stores()
-    app.run(debug=True, port=8000)
+    app.run(debug=True, port=8000, threaded=False)
