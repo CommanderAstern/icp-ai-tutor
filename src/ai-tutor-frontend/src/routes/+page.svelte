@@ -33,7 +33,10 @@
 
   async function generateQuestions() {
     if (questionQuery.trim() !== "") {
-      await backend.generateQuestion(selectedModuleId, selectedLessonId, questionQuery, 0);
+      if (selectedModuleId === null) {
+        selectedModuleId = 0;
+      }
+      await backend.generateQuestion(selectedModuleId, selectedLessonId, questionQuery, selectedModuleId);
       // Refresh the quiz questions after generating new ones
       await getQuizQuestions(selectedLesson.id);
       getQuizQuestions(selectedLesson.id);
@@ -240,6 +243,9 @@
     <div class="max-w-md mx-auto mt-8">
       <form action="#" on:submit|preventDefault={onSubmit} class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
         <div class="mb-4">
+          <h6> Use Username - Mark to login as a teacher</h6>
+          <h6> Use Username - Tim to login as a student</h6>
+          <h6> You can also interact with the backend canister to add your own Users</h6>
           <label for="name" class="block text-gray-700 font-bold mb-2">Enter your name: &nbsp;</label>
           <input id="name" alt="Name" type="text" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
         </div>
@@ -405,7 +411,7 @@
               <div class="quiz-section mb-8">
                 <h5 class="text-lg font-bold mb-2">Quiz</h5>
                 <div class="question-generation mb-4">
-                  <input type="text" placeholder="Enter a query to generate questions" bind:value={questionQuery} class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2" />
+                  <input type="text" placeholder="Enter a topic to generate questions using AI - 1 Min Wait - Refresh" bind:value={questionQuery} class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-2" />
                   <button on:click={generateQuestions} class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">Generate Questions</button>
                 </div>
                 {#await getQuizQuestions(selectedLesson.id) then questions}
