@@ -239,13 +239,14 @@
   <div class="container mx-auto px-4 py-8"> 
   <img src="/logo2.svg" alt="DFINITY logo" class="w-40 mx-auto mb-8" />
 
+  <h6 class="text-xs mb-1">Use Username - Mark to login as a teacher</h6>
+  <h6 class="text-xs mb-1">Use Username - Tim to login as a student</h6>
+  <h6 class="text-xs mb-1">You can also interact with the backend canister to add your own Users</h6>
+
   {#if role === "" || role === undefined || role[0] === ""}
     <div class="max-w-md mx-auto mt-8">
       <form action="#" on:submit|preventDefault={onSubmit} class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
         <div class="mb-4">
-          <h6> Use Username - Mark to login as a teacher</h6>
-          <h6> Use Username - Tim to login as a student</h6>
-          <h6> You can also interact with the backend canister to add your own Users</h6>
           <label for="name" class="block text-gray-700 font-bold mb-2">Enter your name: &nbsp;</label>
           <input id="name" alt="Name" type="text" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
         </div>
