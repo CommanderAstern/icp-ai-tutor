@@ -73,7 +73,14 @@ cd ml
 ```bash
 python3 app.py
 ```
+## Architecture Diagram
+![coolggg](https://github.com/CommanderAstern/icp-ai-tutor/assets/45691479/5669f099-4c1c-4075-9dc4-983d44384820)
 
+
+## Screenshots
+![image](https://github.com/CommanderAstern/icp-ai-tutor/assets/45691479/eb6c486a-9ec4-496a-b5f3-64e51e7ea038)
+![image](https://github.com/CommanderAstern/icp-ai-tutor/assets/45691479/ad701d75-9fd6-4e89-9491-aa05375359b0)
+![image](https://github.com/CommanderAstern/icp-ai-tutor/assets/45691479/5b844dea-d67e-446a-80d9-088a7c77935c)
 
 
 ## Built With
