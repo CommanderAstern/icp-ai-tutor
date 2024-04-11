@@ -2,7 +2,7 @@
   import "../index.scss";
   import { backend } from "$lib/canisters";
   import { AssetManager } from "@dfinity/assets";
-
+  import "../app.css";
   let name = "";
   let role = "";
   let message = "";
@@ -236,6 +236,9 @@
   <img src="/logo2.svg" alt="DFINITY logo" />
   <br />
   <br />
+    <button class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-700 transition duration-300">
+      Test Tailwind Button
+  </button>
 
   {#if role === "" || role === undefined || role[0] === ""}
     <form action="#" on:submit|preventDefault={onSubmit}>
